@@ -11,12 +11,21 @@ Test functions
 
 """
 
-from SatelliteData import load_satellites, load_vishnu_experiment_data
+from SatelliteData import *
 from Clustering import *
 from DistanceAnalysis import *
 from Visualization import *
 
 #%% Satellite Data Loading
+
+def test_query_norad():
+    ''' Load the satellite for a set of Norad IDs '''
+    
+    
+    IDs = [25544, 41335]
+    df = query_norad(IDs,compute_params=True)
+    
+    return df
 
 def test_load_satellite_data():
     ''' Load the satellite data and compute orbital parameters '''

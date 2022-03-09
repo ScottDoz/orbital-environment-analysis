@@ -127,6 +127,9 @@ def load_satellites(group='all',compute_params=True):
         # Rename some columns to match ASTRIAGraph
         df = df.rename(columns = {'name':'Name','norad':'NoradId','epoch':'Epoch'})
         
+        # Remove 0 from name
+        df['Name'][df['Name'].str[:2]=='0 '] = df['Name'].str[2:]
+        
         # Compute orbital parameters
         if compute_params:
             df = compute_orbital_params(df)
@@ -209,6 +212,74 @@ def download_all_spacetrack():
     
     return
 
+#%% Query TLEs by NORAD
+
+def query_norad(IDs,compute_params=True):
+    '''
+    Query TLEs for a list of objects by their NORAD IDs.
+    Returns data in a pandas dataframe with the same field names as those above.
+    '''
+    
+    # Input check
+    if type(IDs)==int:
+        IDs = [IDs]
+    
+    # Read spacetrack email and password from config.ini
+    config = configparser.ConfigParser()
+    config.read('config.ini')
+    email = config['Spacetrack']['email']
+    pw = config['Spacetrack']['pw']
+    
+    # Get data directory
+    DATA_DIR = get_data_home()
+    
+    # Set up connection to client 
+    from spacetrack import SpaceTrackClient
+    st = SpaceTrackClient(email, pw)
+    
+    from tletools import TLE
+    
+    # Loop through IDs
+    df = pd.DataFrame()
+    for ID in IDs:
+        
+        # Query TLE string from Spacetrack
+        tle_string = st.tle_latest(norad_cat_id=ID, ordinal=1, format='3le')
+        tle_lines = tle_string.strip().splitlines() # Separated lines
+        # Load data into TLE object
+        tle = TLE.from_lines(*tle_lines)
+        data = tle.__dict__ # Extract data as dictionary
+        # Convert to dataframe
+        row = pd.DataFrame.from_dict(data, orient='index').T
+        df = df.append(row) # Append
+    
+    # Reset index
+    df = df.reset_index(drop=True)
+    
+    # Fix data types
+    df.norad = df.norad.astype(int) # Convert norad to int
+    df.n = df.n.astype(float)
+    df.ecc = df.ecc.astype(float)
+    df.inc = df.inc.astype(float)
+    df.raan = df.raan.astype(float)
+    df.argp = df.argp.astype(float)
+    
+    # Remove 0 from name
+    df['name'][df['name'].str[:2]=='0 '] = df['name'].str[2:]
+    
+    # Load satcat and merge
+    dfs = pd.read_csv(DATA_DIR/'satcat.csv')
+    df = pd.merge(df,dfs,how='left',left_on='norad',right_on='NORAD_CAT_ID')
+    
+    # Rename some columns to match ASTRIAGraph
+    df = df.rename(columns = {'name':'Name','norad':'NoradId','epoch':'Epoch'})
+    
+    # Compute orbital parameters
+    if compute_params:
+        df = compute_orbital_params(df)
+    
+    
+    return df
 
 
 # Alternative methods for querying single objects
