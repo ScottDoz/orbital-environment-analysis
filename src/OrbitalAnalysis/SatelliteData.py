@@ -19,6 +19,7 @@ import json
 import numpy as np
 from pathlib import Path
 import os
+import configparser
 
 import pdb
 
@@ -169,11 +170,16 @@ def download_all_spacetrack():
     # Get data directory
     DATA_DIR = get_data_home()
     
-    # Set up connection to client
-    # TODO: remove or hash passwords
+    # Read spacetrack email and password from config.ini
+    config = configparser.ConfigParser()
+    config.read('config.ini')
+    email = config['Spacetrack']['email']
+    pw = config['Spacetrack']['pw']
+    # email = 's.dorrington@unswalumni.com'
+    # pw = 'bgzWd4j9L8xr3Db'
+    
+    # Set up connection to client 
     from spacetrack import SpaceTrackClient
-    email = 's.dorrington@unswalumni.com'
-    pw = 'bgzWd4j9L8xr3Db'
     st = SpaceTrackClient(email, pw)
     
     import spacetrack.operators as op
