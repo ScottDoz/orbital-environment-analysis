@@ -30,7 +30,7 @@ def get_data_home():
     This data management system is inspired by the ASTROML python package.
     """
 
-    # Look for Environment variable 'SR_TOOLS_DATA'
+    # Look for Environment variable 'SATELLITE_DATA'
     envvar = os.environ.get('SATELLITE_DATA')
 
     if envvar is None:
