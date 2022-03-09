@@ -16,4 +16,4 @@ Suggest creating a new virtual environment.
 
 TLE data and output interactive web-based visualizations (html files) are saved to ~/satellite_data.
 
-Create this file on first use.
+Create this directory on first use.
