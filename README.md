@@ -14,5 +14,6 @@ Analysis of the Earth orbital environment, and the objects within it
 This repo requires the use of Python 3.7 for compatability with NASA GMAT Python API.
 Suggest creating a new virtual environment.
 
-TLE data and output interactive web-based visualizations (html files) are saved to ~/satellite_data
+TLE data and output interactive web-based visualizations (html files) are saved to ~/satellite_data.
+
 Create this file on first use.
