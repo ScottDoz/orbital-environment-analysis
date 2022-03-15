@@ -15,6 +15,7 @@ from SatelliteData import *
 from Clustering import *
 from DistanceAnalysis import *
 from Visualization import *
+from Overpass import *
 
 #%% Satellite Data Loading
 
@@ -169,6 +170,54 @@ def test_distances():
     
     
     return df
+
+#%% Overpass 
+
+def test_compute_access_GMAT():
+    '''
+    Configure and run GMAT access script with user-defined sat and groundstation
+    '''
+    
+    # Define satellite properties in dictionary
+    # sat_dict = {"DateFormat": "UTCGregorian", "Epoch": '26 Oct 2020 16:00:00.000',
+    #             "SMA": 6963.0, "ECC": 0.0188, "INC": 97.60,
+    #             "RAAN": 308.90, "AOP": 81.20, "TA": 0.00}
+    
+    sat_dict = {"DateFormat": "UTCGregorian", "Epoch": '26 Oct 2020 16:00:00.000',
+                "SMA": 6963.0, "ECC": 0.0188, "INC": 10.60,
+                "RAAN": 308.90, "AOP": 81.20, "TA": 0.00}
+    
+    # # Define groundstation properties in dictionary
+    # gs_dict = {"Location1": 72.03, "Location2": 123.435, "Location3": 0.0460127,
+    #            "MinimumElevationAngle": 0.0}
+    
+    # Define groundstation properties in dictionary
+    gs_dict = {"Location1": 0.00, "Location2": 123.435, "Location3": 0.0460127,
+               "MinimumElevationAngle": 0.0}
+    
+    # Define propagation settings
+    duration = 10. # Propagation duration (days)
+    timestep = 30. # Propagation timestep (s)
+    
+    
+    # Run
+    compute_access_GMAT(sat_dict, gs_dict, duration, timestep)
+    
+    return
+
+def test_access_obs_data():
+    ''' Load the results of the GMAT simulation to Pandas dataframes '''
+    
+    # Load access data
+    dfa = load_access_results()
+    
+    # Load observation data
+    dfobs = load_observation_results()
+    
+    
+    
+    return
+
 
 #%%
 

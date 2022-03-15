@@ -19,6 +19,7 @@ from matplotlib.colors import LogNorm
 
 import pdb
 
+
 #%% Visualizing Orbital Angular Momentum Space
 
 def plot_h_space_numeric(df,color='i',logColor=False,colorscale='Blackbody'):
@@ -461,4 +462,175 @@ def plot_kde(df,xlabel,ylabel):
     plt.show()
     
     return
+
+#%% Overpass plots
+
+def plot_access_times(dfa,dfec):
+    '''
+    Generate a timeline plot showing the access intervals and lighting conditions
+    of the satellite as seen from a groundstation.
+
+    Parameters
+    ----------
+    dfa : TYPE
+        Dataframe containing access results.
+    dfec : TYPE
+        Dataframe containing eclipse results.
+
+    '''
+        
+    # Copy dataframes
+    dfa1 = dfa.copy()
+    dfec1 = dfec.copy()
+    
+    # Add Lighting events
+    
+    # Add blank rows between groups of objects
+    grouped = dfec1.groupby('EventNumber')
+    dfec1 = pd.concat([row.append({'EventNumber': None, 'Type':'Lighting'}, ignore_index=True) for i, row in grouped]).reset_index(drop=True)
+    # Find indices of lighting events
+    ind = dfec1.index[dfec1['Type']=='Lighting']
+    dfec1['Start'][ind] = dfec1['Stop'][ind-1]
+    dfec1['Stop'][ind[:-1] ] = dfec1['Start'][ind[:-1]+1]
+    # FIXME: extend final lighting period to end of scenario
+    
+    # Process access data
+    dfa1['trace'] = 'Access' # Trace label
+    dfa1['Type'] = 'Access'  # Group label
+    dfa1['name'] = 'Access ' + dfa1['Access'].astype(str) # Name label
+    dfa1['color'] = 'blue' # Color all the same
+    
+    # Process eclipse data
+    dfec1['trace'] = 'Sat Lighting'
+    dfec1['name'] = dfec1['Type']
+    dfec1['color'] = ''
+    dfec1['color'][dfec1['Type']=='Umbra'] = 'black'
+    dfec1['color'][dfec1['Type']=='Penumbra'] = 'orange'
+    
+    # TODO: Add Sunlit periods
+    
+    # Compine dataframes
+    df = pd.concat( [dfa1[['Start', 'Stop', 'Duration','Type','trace','color','name']],
+                     dfec1[['Start', 'Stop', 'Duration','Type','trace','color','name']],
+                     ])
+    
+    
+    # Plot access times using a Gannt chart
+    
+    import plotly.graph_objects as go
+    import plotly.express as px
+    import plotly
+    
+    
+    # Create gant chart
+    fig = px.timeline(df, x_start="Start", x_end="Stop", y="trace", color="Type",
+                      color_discrete_sequence=["blue", "black", "grey", "goldenrod"],
+                      )
+    
+    # Update bar height
+    BARHEIGHT = .1
+    fig.update_layout(
+        yaxis={"domain": [max(1 - (BARHEIGHT * len(fig.data)), 0), 1]}, margin={"t": 0, "b": 0}
+    )
+    
+    # Add range slider
+    fig.update_layout(
+        xaxis=dict(
+            rangeselector=dict(
+            ),
+            rangeslider=dict(
+                visible=True
+            ),
+            type="date"
+        )
+    )
+        
+    
+    # Reset dataframes
+    del dfa1
+    del dfec1
+    
+    # Render
+    filename = 'AccessPeriods.html'
+    plotly.offline.plot(fig, validate=False, filename=filename)
+    
+    
+    return
+
+def plot_overpass(dfobs, dfa):
+    
+    
+    # Bin data based on access time intervals
+    # See: https://towardsdatascience.com/how-i-customarily-bin-data-with-pandas-9303c9e4d946
+    
+    dfobs1 = dfobs.copy()
+    
+    # Create bins of ranges for each access interval
+    ranges = pd.IntervalIndex.from_tuples(list(zip(dfa['Start'], dfa['Stop'])),closed='both')
+    labels = dfa.Access.astype(str).to_list()
+    # Apply cut to label access periods
+    dfobs1['Access'] = pd.cut(dfobs1['Epoch'], bins=ranges, labels=labels).map(dict(zip(ranges,labels)))
+    
+    # Remove non-access
+    dfobs1 = dfobs1[pd.notnull(dfobs1.Access)]
+    
+    # Add blank rows between groups of objects
+    grouped = dfobs1.groupby('Access')
+    dfobs1 = pd.concat([i.append({'Access': None}, ignore_index=True) for _, i in grouped]).reset_index(drop=True)
+    # Forward fill na in Access 
+    dfobs1.Access = dfobs1.Access.fillna(method="ffill")
+    
+    
+    import plotly.graph_objects as go
+    import plotly.express as px
+    import plotly
+    
+    
+    # Plotly express
+    fig = px.line_polar(dfobs1, r="El", theta="Az",
+                        color="Access",
+                        color_discrete_sequence=px.colors.sequential.Plasma_r)
+    
+    
+    # Remove gaps
+    fig.update_traces(connectgaps=False)
+    
+    # Reverse polar axis
+    fig.update_layout(
+        polar = dict(
+          radialaxis = dict(range = [90,0]),
+          angularaxis = dict(
+                    tickfont_size=10,
+                    rotation=90, # start position of angular axis
+                    direction="clockwise",
+                    showticklabels = True,
+                    ticktext = ['0','1','2','3','4','5','6','7']
+                  )
+          ),
+        )
+    
+    # # Add button to toggle traces on/off
+    # button2 = dict(method='restyle',
+    #             label='All',
+    #             visible=True,
+    #             args=[{'visible':True}],
+    #             args2 = [{'visible': False}],
+    #             )
+    # # Create menu item    
+    # um = [{'buttons':button2, 'label': 'Show', 'showactive':True,
+    #         # 'x':0.3, 'y':0.99,
+    #         }]
+    
+    # pdb.set_trace()
+    
+    # # add dropdown menus to the figure
+    # fig.update_layout(showlegend=True, updatemenus=um)
+    
+    plotly.offline.plot(fig, validate=False)
+    
+    
+    del dfobs1
+    
+    return
+
 
