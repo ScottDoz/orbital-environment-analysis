@@ -22,7 +22,7 @@ import os
 import requests
 import numpy as np
 import pandas as pd
-from astropy.time import Time as astroTime
+from astropy.time import Time as Time
 import spiceypy as spice
 
 from utils import get_data_home
@@ -289,11 +289,20 @@ def get_ephem_ITFR(et,groundstations=['DSS-43']):
     if et.max() > stop_et:
         raise ValueError("Warning: et outside spk coverage range")
     
+    # Convert ET to datetimes
+    dt = spice.et2datetime(et) # Datetime
+    t = Time(dt, format='datetime', scale='utc') # Astropy Time object
+    t_iso = t.iso # Times in iso
+    
+    
     # Create dataframe for output
-    df = pd.DataFrame(columns=['ET',
+    df = pd.DataFrame(columns=['ET','UTCG',
                                'Sat.X','Sat.Y','Sat.Z',
                                'Sun.X','Sun.Y','Sun.Z'])
+    # Add epochs
     df.ET = et
+    df.UTCG = t_iso
+    df.UTCG = pd.to_datetime(df.UTCG) # Convert to Datetime object
     
     # Ephemeris settings
     # ref = 'ITRF93'  # High-precision Earth-fixed reference frame
@@ -372,16 +381,25 @@ def get_ephem_TOPO(et,groundstations=['DSS-43']):
     if et.max() > stop_et:
         raise ValueError("Warning: et outside spk coverage range")
     
+    # Convert ET to datetimes
+    dt = spice.et2datetime(et) # Datetime
+    t = Time(dt, format='datetime', scale='utc') # Astropy Time object
+    t_iso = t.iso # Times in iso
+    
     
     # Generate new dataframe for each of the ground stations
     dfs = []
     for gs in groundstations:
     
         # Create dataframe for output
-        df = pd.DataFrame(columns=['ET',
+        df = pd.DataFrame(columns=['ET','UTCG',
                                    'Sat.X','Sat.Y','Sat.Z','Sat.Az','Sat.El','Sat.R',
                                    'Sun.X','Sun.Y','Sun.Z','Sun.Az','Sun.El','Sun.R',])
+        # Add epochs
         df.ET = et
+        df.UTCG = t_iso
+        df.UTCG = pd.to_datetime(df.UTCG) # Convert to Datetime object
+        
         
         # Satellite ephemeris (targ, et, ref, abcorr, obs)
         [satv, ltime] = spice.spkpos( str(sat_NAIF[0]), et, gs+'_TOPO', 'lt+s', gs)
