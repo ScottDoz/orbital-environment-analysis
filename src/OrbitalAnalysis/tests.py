@@ -213,41 +213,33 @@ def test_compute_access_GMAT():
     
     return
 
-def test_access_obs_data():
+def test_load_GMAT_results():
     ''' Load the results of the GMAT simulation to Pandas dataframes '''
     
     # Load access data
     dfa = load_access_results()
     
-    # Load observation data
-    dfobs = load_ephem_report_results()()
+    # Load satellite eclopse data
+    dfec = load_sat_eclipse_results()
     
-    return
+    # # Load observation data
+    # dfobs = load_ephem_report_results()
+    
+    return dfa, dfec
 
-def test_sc_ephem():
-    ''' Extract the ephemeris of the spacecraft from the generated spk file '''
-    
-    # Load leapsecond kernel
-    spice.furnsh( str(get_data_home()/'kernels'/'naif0012.tls') ) # Leap second kernel
-    
-    # Load observation file to get list of epochs
-    dfobs = load_ephem_report_results()
-    et = dfobs.EpochET.to_list() # Epochs in ET
-    
-    return
 
 
 #%% Comparing Ephemerides
 
 def test_compare_ephemerides():
     
-    # Load the GMAT observation output
+    # Load the GMAT ephemeris output
     dfobs = load_ephem_report_results()
     # Remove first and last timestep
     dfobs = dfobs[1:-1]
     
     # Extract ephemeris times
-    et = dfobs.EpochET.to_numpy()
+    et = dfobs.ET.to_numpy()
     
     # Compute ephemeris using Spice
     dfitfr = get_ephem_ITFR(et) # Earth fixed
@@ -263,7 +255,7 @@ def test_compare_ephemerides():
     
     
     # Merge dataframes
-    df = pd.merge(dfobs, dfitfr, how='left', left_on='EpochET', right_on='ET')
+    df = pd.merge(dfobs, dfitfr, how='left', left_on='ET', right_on='ET')
     
     # Plot Earth-Fixed Positions
     fig, (ax1,ax2) = plt.subplots(2, 1)
@@ -271,39 +263,59 @@ def test_compare_ephemerides():
     plt.xlabel("Epoch (ET)")
     plt.ylabel("Earth-Fixed Position (km)")
     # Ground Station
-    ax1.plot(df['EpochET'],df['GS1.EarthFixed.X']-df['DSS-43.X'],'-k',label='GS1 dX')
-    ax1.plot(df['EpochET'],df['GS1.EarthFixed.Y']-df['DSS-43.Y'],'-b',label='GS1 dY')
-    ax1.plot(df['EpochET'],df['GS1.EarthFixed.Z']-df['DSS-43.Z'],'-r',label='GS1 dZ')
+    ax1.plot(df['ET'],df['GS1.EarthFixed.X']-df['DSS-43.X'],'-k',label='GS1 dX')
+    ax1.plot(df['ET'],df['GS1.EarthFixed.Y']-df['DSS-43.Y'],'-b',label='GS1 dY')
+    ax1.plot(df['ET'],df['GS1.EarthFixed.Z']-df['DSS-43.Z'],'-r',label='GS1 dZ')
     ax1.legend(loc="upper left")
     # Satellite
-    ax2.plot(df['EpochET'],df['Sat.EarthFixed.X']-df['Sat.X'],'-k',label='Sat dX')
-    ax2.plot(df['EpochET'],df['Sat.EarthFixed.Y']-df['Sat.Y'],'-b',label='Sat dY')
-    ax2.plot(df['EpochET'],df['Sat.EarthFixed.Z']-df['Sat.Z'],'-r',label='Sat dZ')
+    ax2.plot(df['ET'],df['Sat.EarthFixed.X']-df['Sat.X'],'-k',label='Sat dX')
+    ax2.plot(df['ET'],df['Sat.EarthFixed.Y']-df['Sat.Y'],'-b',label='Sat dY')
+    ax2.plot(df['ET'],df['Sat.EarthFixed.Z']-df['Sat.Z'],'-r',label='Sat dZ')
     ax2.legend(loc="upper left")
     fig.show()
     
     # Topocentric
-    df = pd.merge(dfobs, dftopo, how='left', left_on='EpochET', right_on='ET')
+    df = pd.merge(dfobs, dftopo, how='left', left_on='ET', right_on='ET')
     
     fig, (ax1,ax2) = plt.subplots(2,1)
     fig.suptitle('GS1 Topocentric Coordinates (GMAT-Spice)')
     plt.xlabel("Epoch (ET)")
     plt.ylabel("Topocentric Position (km)")
     # Satellite
-    ax1.plot(df['EpochET'],df['Sat.TopoGS1.X']-df['Sat.X'],'-k',label='Sat dX')
-    ax1.plot(df['EpochET'],df['Sat.TopoGS1.Y']-df['Sat.Y'],'-b',label='Sat dY')
-    ax1.plot(df['EpochET'],df['Sat.TopoGS1.Z']-df['Sat.Z'],'-r',label='Sat dZ')
+    ax1.plot(df['ET'],df['Sat.TopoGS1.X']-df['Sat.X'],'-k',label='Sat dX')
+    ax1.plot(df['ET'],df['Sat.TopoGS1.Y']-df['Sat.Y'],'-b',label='Sat dY')
+    ax1.plot(df['ET'],df['Sat.TopoGS1.Z']-df['Sat.Z'],'-r',label='Sat dZ')
     ax1.set_ylabel("Topocentric Position (km)")
     ax1.legend(loc="upper left")
     # Az/El
-    ax2.plot(df['EpochET'],df['Sat.TopoGS1.DEC']-df['Sat.El'],'-k',label='Sat dEl')
-    ax2.plot(df['EpochET'],df['SatAz']-df['Sat.Az'],'-b',label='Sat dAz')
+    ax2.plot(df['ET'],df['Sat.TopoGS1.DEC']-df['Sat.El'],'-k',label='Sat dEl')
+    ax2.plot(df['ET'],df['SatAz']-df['Sat.Az'],'-b',label='Sat dAz')
     ax2.set_ylabel("Angles (deg)")
     ax2.legend(loc="upper left")
     fig.show()
     
     
     return df
+
+#%% Plot Overpass
+
+def test_plot_overpass():
+    
+    # Load access
+    dfa = load_access_results()
+    
+    # Generate ephemeris times
+    et = generate_et_vectors_from_GMAT_coverage(30., exclude_ends=True)
+    
+    # Get Topocentric observations
+    dftopo = get_ephem_TOPO(et)[0]
+    dftopo['Sat.El'] = np.rad2deg(dftopo['Sat.El'])
+    dftopo['Sat.Az'] = np.rad2deg(dftopo['Sat.Az'])
+    
+    # Plot
+    plot_overpass(dftopo, dfa)
+    
+    return
 
 
 

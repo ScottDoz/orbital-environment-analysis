@@ -557,28 +557,28 @@ def plot_access_times(dfa,dfec):
     
     return
 
-def plot_overpass(dfobs, dfa):
+def plot_overpass(dftopo, dfa):
     
     
     # Bin data based on access time intervals
     # See: https://towardsdatascience.com/how-i-customarily-bin-data-with-pandas-9303c9e4d946
     
-    dfobs1 = dfobs.copy()
+    dftopo1 = dftopo.copy()
     
     # Create bins of ranges for each access interval
     ranges = pd.IntervalIndex.from_tuples(list(zip(dfa['Start'], dfa['Stop'])),closed='both')
     labels = dfa.Access.astype(str).to_list()
     # Apply cut to label access periods
-    dfobs1['Access'] = pd.cut(dfobs1['EpochDatetime'], bins=ranges, labels=labels).map(dict(zip(ranges,labels)))
+    dftopo1['Access'] = pd.cut(dftopo1['UTCG'], bins=ranges, labels=labels).map(dict(zip(ranges,labels)))
     
     # Remove non-access
-    dfobs1 = dfobs1[pd.notnull(dfobs1.Access)]
+    dftopo1 = dftopo1[pd.notnull(dftopo1.Access)]
     
     # Add blank rows between groups of objects
-    grouped = dfobs1.groupby('Access')
-    dfobs1 = pd.concat([i.append({'Access': None}, ignore_index=True) for _, i in grouped]).reset_index(drop=True)
+    grouped = dftopo1.groupby('Access')
+    dftopo1 = pd.concat([i.append({'Access': None}, ignore_index=True) for _, i in grouped]).reset_index(drop=True)
     # Forward fill na in Access 
-    dfobs1.Access = dfobs1.Access.fillna(method="ffill")
+    dftopo1.Access = dftopo1.Access.fillna(method="ffill")
     
     
     import plotly.graph_objects as go
@@ -587,7 +587,7 @@ def plot_overpass(dfobs, dfa):
     
     
     # Plotly express
-    fig = px.line_polar(dfobs1, r="SatEl", theta="SatAz",
+    fig = px.line_polar(dftopo1, r="Sat.El", theta="Sat.Az",
                         color="Access",
                         color_discrete_sequence=px.colors.sequential.Plasma_r)
     
@@ -629,7 +629,7 @@ def plot_overpass(dfobs, dfa):
     plotly.offline.plot(fig, validate=False)
     
     
-    del dfobs1
+    del dftopo1
     
     return
 
