@@ -11,12 +11,12 @@ GMAT Sat.DateFormat = UTCGregorian;
 GMAT Sat.Epoch = '01 Jan 2000 11:59:28.000';
 GMAT Sat.CoordinateSystem = EarthMJ2000Eq;
 GMAT Sat.DisplayStateType = Keplerian;
-GMAT Sat.SMA = 7191.938817629031;
-GMAT Sat.ECC = 0.02454974900598191;
-GMAT Sat.INC = 12.85008005658097;
+GMAT Sat.SMA = 7191.93881762905;
+GMAT Sat.ECC = 0.02454974900598156;
+GMAT Sat.INC = 12.850080056581;
 GMAT Sat.RAAN = 306.6148021947984;
-GMAT Sat.AOP = 314.1905515359947;
-GMAT Sat.TA = 99.88774933204624;
+GMAT Sat.AOP = 314.1905515359986;
+GMAT Sat.TA = 99.88774933204243;
 GMAT Sat.DryMass = 850;
 GMAT Sat.Cd = 2.2;
 GMAT Sat.Cr = 1.8;
@@ -71,6 +71,28 @@ GMAT GS1.Temperature = 295.1;
 GMAT GS1.Pressure = 1013.5;
 GMAT GS1.Humidity = 55;
 GMAT GS1.MinimumElevationAngle = 7;
+
+%----------------------------------------
+%---------- ForceModels
+%----------------------------------------
+
+Create ForceModel Propagator1_ForceModel;
+GMAT Propagator1_ForceModel.CentralBody = Earth;
+GMAT Propagator1_ForceModel.PrimaryBodies = {Earth};
+GMAT Propagator1_ForceModel.Drag = None;
+GMAT Propagator1_ForceModel.SRP = Off;
+GMAT Propagator1_ForceModel.RelativisticCorrection = Off;
+GMAT Propagator1_ForceModel.ErrorControl = RSSStep;
+GMAT Propagator1_ForceModel.GravityField.Earth.Degree = 4;
+GMAT Propagator1_ForceModel.GravityField.Earth.Order = 4;
+GMAT Propagator1_ForceModel.GravityField.Earth.StmLimit = 100;
+GMAT Propagator1_ForceModel.GravityField.Earth.PotentialFile = 'JGM2.cof';
+GMAT Propagator1_ForceModel.GravityField.Earth.TideModel = 'None';
+
+
+
+
+
 
 
 
@@ -179,13 +201,13 @@ GMAT EphemerisFile1.WriteEphemeris = true;
 
 Create ReportFile ObservationReportFile1;
 GMAT ObservationReportFile1.SolverIterations = Current;
-GMAT ObservationReportFile1.UpperLeft = [ 0.1083158630328442 0.03229278794402583 ];
-GMAT ObservationReportFile1.Size = [ 0.7547169811320755 0.798708288482239 ];
-GMAT ObservationReportFile1.RelativeZOrder = 23;
+GMAT ObservationReportFile1.UpperLeft = [ 0.1079584775086505 0.03169398907103825 ];
+GMAT ObservationReportFile1.Size = [ 0.7536332179930796 0.7978142076502732 ];
+GMAT ObservationReportFile1.RelativeZOrder = 4;
 GMAT ObservationReportFile1.Maximized = false;
 GMAT ObservationReportFile1.Filename = 'ReportFile1.txt';
 GMAT ObservationReportFile1.Precision = 16;
-GMAT ObservationReportFile1.Add = {Sat.A1ModJulian, Sat.UTCGregorian, Sat.TopoGS1.X, Sat.TopoGS1.Y, Sat.TopoGS1.Z, Sat.TopoGS1.AZI, Sat.TopoGS1.RA, Sat.TopoGS1.DEC, Sat.TopoGS1.PlanetodeticRMAG};
+GMAT ObservationReportFile1.Add = {Sat.A1ModJulian, Sat.UTCGregorian, Sat.TopoGS1.X, Sat.TopoGS1.Y, Sat.TopoGS1.Z, Sat.TopoGS1.AZI, Sat.TopoGS1.RA, Sat.TopoGS1.DEC, Sat.TopoGS1.PlanetodeticRMAG, Sat.EarthMJ2000Eq.X, Sat.EarthMJ2000Eq.Y, Sat.EarthMJ2000Eq.Z, Sat.EarthFixed.X, Sat.EarthFixed.Y, Sat.EarthFixed.Z, GS1.EarthMJ2000Eq.X, GS1.EarthMJ2000Eq.Y, GS1.EarthMJ2000Eq.Z, GS1.EarthFixed.X, GS1.EarthFixed.Y, GS1.EarthFixed.Z, Sun.EarthMJ2000Eq.X, Sun.EarthMJ2000Eq.Y, Sun.EarthMJ2000Eq.Z};
 GMAT ObservationReportFile1.WriteHeaders = true;
 GMAT ObservationReportFile1.LeftJustify = On;
 GMAT ObservationReportFile1.ZeroFill = Off;
@@ -199,6 +221,11 @@ GMAT ObservationReportFile1.WriteReport = true;
 %----------------------------------------
 Create Variable prop_time_days;
 GMAT prop_time_days = 10;
+
+
+
+
+
 
 
 

@@ -569,7 +569,7 @@ def plot_overpass(dfobs, dfa):
     ranges = pd.IntervalIndex.from_tuples(list(zip(dfa['Start'], dfa['Stop'])),closed='both')
     labels = dfa.Access.astype(str).to_list()
     # Apply cut to label access periods
-    dfobs1['Access'] = pd.cut(dfobs1['Epoch'], bins=ranges, labels=labels).map(dict(zip(ranges,labels)))
+    dfobs1['Access'] = pd.cut(dfobs1['EpochDatetime'], bins=ranges, labels=labels).map(dict(zip(ranges,labels)))
     
     # Remove non-access
     dfobs1 = dfobs1[pd.notnull(dfobs1.Access)]
@@ -587,7 +587,7 @@ def plot_overpass(dfobs, dfa):
     
     
     # Plotly express
-    fig = px.line_polar(dfobs1, r="El", theta="Az",
+    fig = px.line_polar(dfobs1, r="SatEl", theta="SatAz",
                         color="Access",
                         color_discrete_sequence=px.colors.sequential.Plasma_r)
     

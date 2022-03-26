@@ -10,6 +10,9 @@ Overpass Module
 - compute access intervals between target satellite and groundstations using GMAT
 - analyse statistics of the overpasses
 
+Note: the NAIF of the spacecraft in the output ephemeris file is
+NAIF = -10002001
+
 """
 
 import pandas as pd
@@ -65,6 +68,30 @@ def get_groundstations():
     df['Long'][df.Long < 0.] += 360.
     
     return df
+
+# DSN Ground stations defined in the earthstns_itrf93_201023.bsp file
+# Use COMMNT command line tool to view.
+#
+# Antenna   NAIF    Diameter   x (m)            y (m)           z (m)
+# 
+# DSS-13    399013  34m     -2351112.659    -4655530.636    +3660912.728
+# DSS-14    399014  70m     -2353621.420    -4641341.472    +3677052.318
+# DSS-15    399015  34m     -2353538.958    -4641649.429    +3676669.984 {3}
+# DSS-24    399024  34m     -2354906.711    -4646840.095    +3669242.325
+# DSS-25    399025  34m     -2355022.014    -4646953.204    +3669040.567
+# DSS-26    399026  34m     -2354890.797    -4647166.328    +3668871.755
+# DSS-34    399034  34m     -4461147.093    +2682439.239    -3674393.133 {1}
+# DSS-35    399035  34m     -4461273.090    +2682568.925    -3674152.093 {1}
+# DSS-36    399036  34m     -4461168.415    +2682814.657    -3674083.901 {1}
+# DSS-43    399043  70m     -4460894.917    +2682361.507    -3674748.152
+# DSS-45    399045  34m     -4460935.578    +2682765.661    -3674380.982 {3}
+# DSS-53    399053  34m     +4849339.965     -360658.246    +4114747.290 {2}
+# DSS-54    399054  34m     +4849434.488     -360723.8999   +4114618.835
+# DSS-55    399055  34m     +4849525.256     -360606.0932   +4114495.084
+# DSS-56    399056  34m     +4849421.679     -360549.659    +4114646.987
+# DSS-63    399063  70m     +4849092.518     -360180.3480   +4115109.251
+# DSS-65    399065  34m     +4849339.634     -360427.6637   +4114750.733
+
 
 
 #%% Compute access using GMAT
@@ -207,11 +234,93 @@ def compute_access_GMAT(sat_dict, gs_dict, duration=10., timestep=60., out_dir=N
 
     return
 
-#%% Processing Access results
+#%% Scenario coverage and time vectors
+
+def get_GMAT_coverage(DATA_DIR=None):
+    '''
+    Get the date coverage of the GMAT scenario. Return a dictionary containing
+    the start/stop dates in both ISO dates and ephemeris time (ET).
+
+    '''
+    
+    
+    # Set default data dir
+    if DATA_DIR is None:
+        DATA_DIR = get_data_home()/'GMATscripts'/'Access'
+    else:
+        if type(DATA_DIR)==str:
+            DATA_DIR = Path(DATA_DIR)
+    
+    # Load the script of the configured mission
+    gmat.LoadScript(str(DATA_DIR/"configured_mission.script"))
+    
+    # Load LSK for time conversions
+    spice.furnsh( str(get_data_home()/'kernels'/'naif0012.tls') ) # Leap second kernel
+    
+    # Get GMAT objects
+    sat = gmat.GetObject("Sat") # Satellite
+    var_prop_time_days = gmat.GetObject("prop_time_days") # Variable Propagation time (days) 
+    
+    # Extract start time from satellite
+    start_date = sat.GetField("Epoch")
+    # Convert to astropy.Time object
+    start_et = spice.str2et(start_date) # Epochs in ET
+    
+    # Extract propagation time (days)
+    duration = float(var_prop_time_days.GetField('Value'))
+    # Compute end date (1 day = 86400 s)
+    stop_et = start_et + duration*86400.
+    
+    
+    # Convert start/stop times to iso
+    start_date = Time(spice.et2datetime(start_et), scale='utc').iso
+    stop_date = Time(spice.et2datetime(stop_et), scale='utc').iso
+    
+    # Format dictionary of results
+    cov = {'start_date':start_date, 'start_et':start_et,
+           'stop_date':stop_date, 'stop_et':stop_et}
+    
+    return cov
+
+def generate_et_vectors_from_GMAT_coverage(step, exclude_ends=False):
+    '''
+    Generate a vector of epochs (ET) with start and stop dates from the GMAT
+    scenario
+
+    Parameters
+    ----------
+    step : float
+        Step size in seconds
+    
+    exclude_ends : Bool
+        Flag to exclude the srart and stop times.
+        Sometimes problems with interpolating ephemeris at ends.
+
+    Returns
+    -------
+    et : 1xN numpy array.
+        Vector of ephemeris times
+
+    '''
+    
+    # Read the GMAT script to get coverage
+    cov = get_GMAT_coverage()
+    
+    # Create time vector
+    et = np.arange(cov['start_et'],cov['stop_et'],step)
+    
+    # Clip ends
+    if exclude_ends == True:
+        et = et[1:-1]
+    
+    return et
+
+
+#%% Retreive GMAT Results
 
 def load_access_results(DATA_DIR=None):
     '''
-    Load access results from GMAT simulation. Returns a dataframe containint
+    Load access results from GMAT simulation. Returns a dataframe containing
     the Start Time, Stop Time, and Duration (s) of each access period.
 
     Parameters
@@ -276,6 +385,21 @@ def load_access_results(DATA_DIR=None):
     return df
 
 def load_eclipse_results(DATA_DIR=None):
+    '''
+    Load eclipse results from GMAT simulation. Returns a dataframe containing
+    the Start Time, Stop Time, and Duration (s) of each eclipse period.
+
+    Parameters
+    ----------
+    DATA_DIR : TYPE, optional
+        DESCRIPTION. The default is None.
+
+    Returns
+    -------
+    df : Pandas Dataframe
+        Dataframe containing eclipse periods.
+
+    '''
     
     
     # Set default data dir
@@ -321,7 +445,25 @@ def load_eclipse_results(DATA_DIR=None):
 
 
 
-def load_observation_results(DATA_DIR=None):
+def load_ephem_report_results(DATA_DIR=None):
+    '''
+    Load ephemeris report results from GMAT simulation. Returns a dataframe 
+    containing the position vectors of the satellite and ground station at
+    timesteps generated by the propagator.
+    
+    Note: Problems with GMAT computing Sun position. Read from SPK file instead.
+
+    Parameters
+    ----------
+    DATA_DIR : TYPE, optional
+        DESCRIPTION. The default is None.
+
+    Returns
+    -------
+    df : Pandas Dataframe
+        Dataframe containing access periods.
+
+    '''
     
     # Set default data dir
     if DATA_DIR is None:
@@ -336,16 +478,33 @@ def load_observation_results(DATA_DIR=None):
                       sep=r"\s\s+", engine='python')
     
     # Create a column with datetime objects
-    df.insert(0, 'Epoch', pd.to_datetime(df['Sat.UTCGregorian']))
+    df.insert(0, 'EpochDatetime', pd.to_datetime(df['Sat.UTCGregorian']))
     
+    # Add ephemeris time
+    spice.furnsh( str(get_data_home()/'kernels'/'naif0012.tls') ) # Leap second kernel
+    t = df['Sat.UTCGregorian'].astype(str).to_list() # Epochs in UTCGregorian
+    et = spice.str2et(t) # Epochs in ET
+    df.insert(0, 'EpochET', et)
+    
+    
+    # Computations
+    
+    # Add Sun position
+    sunpos_j2000, sunpos_iau_earth = get_sun_ephem(et)
+    df[['Sun.J2000.X','Sun.J2000.Y','Sun.J2000.Z']] = sunpos_j2000
+    
+    
+    
+    
+    # Compute Az/El angles relative to GS Topo frame
     # Elevation
     # 'Sat.TopoGS1.DEC' is the declination or elevation of the spacecraft above
     # the local horizon
     # Confimed computation below
-    df['El'] = np.rad2deg(np.arctan2(df['Sat.TopoGS1.Z'],
+    df['SatEl'] = np.rad2deg(np.arctan2(df['Sat.TopoGS1.Z'],
                         np.sqrt(df['Sat.TopoGS1.X']**2 + df['Sat.TopoGS1.Y']**2))) # Elevation (from xy plane)
     # Confirmed == Sat.TopoGS1.DEC
-    # >> df[['Sat.TopoGS1.DEC','El']]
+    # >> df[['Sat.TopoGS1.DEC','SatEl']]
     
     
     # Azimuth
@@ -354,10 +513,10 @@ def load_observation_results(DATA_DIR=None):
     # anti-clockwise.
     theta = np.rad2deg(np.arctan2(df['Sat.TopoGS1.Y'],df['Sat.TopoGS1.X'])) # From S measured anti-clockwise
     # Confirmed theta == Sat.TopoGS1.RA
-    # >> df[['Sat.TopoGS1.RA','Az']]
+    # >> df[['Sat.TopoGS1.RA','SatAz']]
     
     # Compute the Azimuth in an Alt/Az system (measured clock-wise from North)
-    df['Az'] = 180 - theta
+    df['SatAz'] = 180 - theta
     
     
     # TODO: Compute proper motion in az/el
@@ -405,3 +564,133 @@ def compute_visual_magnitude(df):
     
     
     return
+
+#%% Observation data from ephemeris
+
+def get_sun_ephem(et):
+    
+    # Set directory to save into
+    kernel_dir = get_data_home()  / 'Kernels'
+    
+    # Load kernels
+    spice.furnsh( str(kernel_dir/'naif0012.tls') ) # Leap second kernel
+    spice.furnsh( str(kernel_dir/'pck00010.tpc') ) # Planetary constants kernel
+    spice.furnsh( str(kernel_dir/'de440s.bsp') )   # Leap second kernel
+    
+    # Apparent position of Earth relative to the Moon's center in the IAU_MOON frame.
+    targ = 'Sun'  # Target body
+    ref =  'J2000'     # Reference frame 'J2000' or 'iau_earth'
+    abcorr = 'lt+s'   # Aberration correction flag.
+    obs = 'Earth'     # Observing body name
+    # List of reference frames: https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/frames.html
+    
+    # Earth Inertial Frame (J2000) 
+    [sv_j2000, ltime] = spice.spkpos(targ, et, 'J2000', abcorr, obs) # Inertial state
+    sunpos_j2000 = np.array(sv_j2000) # Position vector as numpy
+    # Earth Body-fixed Frame (iau_earth)
+    [sv_iau_earth, ltime] = spice.spkpos(targ, et, 'iau_earth', abcorr, obs) # Inertial state
+    sunpos_iau_earth = np.array(sv_iau_earth) # Position vector as numpy
+    
+    return sunpos_j2000, sunpos_iau_earth
+
+
+def get_sc_ephem(et):
+    
+    # Extract ephemeris of spacecraft from file
+    
+    # Set directory to save into
+    kernel_dir = get_data_home()  / 'Kernels'
+    sat_ephem_file = str(get_data_home()/'GMATscripts'/'Access'/'EphemerisFile1.bsp')
+    
+    # Load kernels
+    spice.furnsh( str(kernel_dir/'naif0012.tls') ) # Leap second kernel
+    spice.furnsh( str(kernel_dir/'pck00010.tpc') ) # Planetary constants kernel
+    spice.furnsh( str(kernel_dir/'de440s.bsp') )   # Solar System ephemeris
+    spice.furnsh(str(get_data_home()/'GMATscripts'/'Access'/'EphemerisFile1.bsp'))
+    
+    # TODO: Create frame kernels for the ground stations
+    # see: https://naif.jpl.nasa.gov/pub/naif/utilities/PC_Windows_64bit/pinpoint.ug
+    
+    
+    # Get the NAIF IDs of the objects in the file
+    ids = spice.spkobj(sat_ephem_file) # SpiceCell object
+    numobj = len(ids)
+    NAIF = ids[0] # -10002001 NAIF of the satellite
+    
+    # Get the coverage of the spk file
+    # Coverage time is in et
+    cov = spice.spkcov(sat_ephem_file,ids[0]) # SpiceCell object
+    start_et, stop_et = cov
+    
+    
+    # Apparent position of Earth relative to the Moon's center in the IAU_MOON frame.
+    targ = str(NAIF)  # Target body
+    ref = 'J2000'     # Reference frame 'J2000' or 'iau_earth'
+    abcorr = 'lt+s'   # Aberration correction flag.
+    obs = 'Earth'     # Observing body name
+    # List of reference frames: https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/frames.html
+    [state_inert, ltime] = spice.spkpos(targ, et[1:-1], 'J2000', abcorr, obs) # Inertial state
+    [state_bf, ltime] = spice.spkpos(targ, et[1:-1], 'iau_earth', abcorr, obs)    # Earth Body-fixed
+    Earthpos = np.array(imoonv) # Position vector as numpy
+    
+    
+    
+    
+    return
+
+def get_station_ephem(et):
+    
+    # Load kernel earthstns_itrf93_201023
+    
+    # Set directory to save into
+    kernel_dir = get_data_home()  / 'Kernels'
+    # sat_ephem_file = str(get_data_home()/'GMATscripts'/'Access'/'EphemerisFile1.bsp')
+    station_file = str(kernel_dir/'earthstns_itrf93_201023.bsp')
+    
+    # Load kernels
+    spice.furnsh( str(kernel_dir/'naif0012.tls') ) # Leap second kernel
+    spice.furnsh( str(kernel_dir/'pck00010.tpc') ) # Planetary constants kernel
+    spice.furnsh( str(kernel_dir/'de440s.bsp') )   # Solar System ephemeris
+    spice.furnsh( str(kernel_dir/'earth_assoc_itrf93.tf') ) # ITRF93 frame kernel
+    spice.furnsh( str(kernel_dir/'earthstns_itrf93_201023.bsp') ) # Stations ephemerides
+    
+    
+    
+    
+    # Get the NAIF IDs of the objects in the file
+    ids = spice.spkobj(station_file) # SpiceCell object
+    numobj = len(ids)
+    stationIDs = [ids[i] for i in range(numobj)] # -10002001 NAIF of the satellite
+    
+    # Apparent position of Earth relative to the Moon's center in the IAU_MOON frame.
+    targ = str(stationIDs[0])  # Target body
+    ref = 'J2000'     # Reference frame 'J2000' or 'iau_earth'
+    abcorr = 'lt+s'   # Aberration correction flag.
+    obs = 'Earth'     # Observing body name
+    # List of reference frames: https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/frames.html
+    [state_inert, ltime] = spice.spkpos(targ, et[1:-1], 'J2000', abcorr, obs) # Inertial state
+    [state_bf, ltime] = spice.spkpos(targ, et[1:-1], 'iau_earth', abcorr, obs)    # Earth Body-fixed
+    Earthpos = np.array(imoonv) # Position vector as numpy
+    
+    
+    return
+
+
+#%% Notes on access
+
+# Access in STK uses lighting constaints on the groundstation
+# In DT.py, the ligthing condition is set at value '3'.
+# In Riley's thesis, it is listed as 'ePenumbraorUmbra'.
+# STK reference on constraints (link below) lists lighting condition option
+# of Penumbra or Umbra: Partial sunlight of total shadow.
+# See: https://help.agi.com/stk/11.0.1/Content/stk/constraints-02.htm
+
+# In GMAT, there is no option to add constraints to access.
+# To replicate:
+# 1. Compute Access times from gs-Sat
+# 2. Compute lighting conditions at station (using sun elevation)
+# 3. Apply these constraints to the access times.
+
+
+
+
