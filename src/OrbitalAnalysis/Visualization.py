@@ -17,7 +17,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 
+import plotly.graph_objects as go
+import plotly
+import plotly.express as px
+
 import pdb
+
+from Ephem import *
 
 
 #%% Visualizing Orbital Angular Momentum Space
@@ -565,6 +571,14 @@ def plot_overpass(dftopo, dfa):
     
     dftopo1 = dftopo.copy()
     
+    # Compute visual magnitudes
+    Rsat = 1 # Radius of satellite (m)
+    msat = compute_visual_magnitude(dftopo1,Rsat,p=0.25,k=0.12) # With airmass
+    dftopo1['Sat.Vmag'] = msat
+    
+    # Remove nan
+    dftopo1 = dftopo1[pd.notnull(dftopo1['Sat.Vmag'])]
+    
     # Create bins of ranges for each access interval
     ranges = pd.IntervalIndex.from_tuples(list(zip(dfa['Start'], dfa['Stop'])),closed='both')
     labels = dfa.Access.astype(str).to_list()
@@ -573,6 +587,7 @@ def plot_overpass(dftopo, dfa):
     
     # Remove non-access
     dftopo1 = dftopo1[pd.notnull(dftopo1.Access)]
+    
     
     # Add blank rows between groups of objects
     grouped = dftopo1.groupby('Access')
@@ -585,11 +600,19 @@ def plot_overpass(dftopo, dfa):
     import plotly.express as px
     import plotly
     
+    # Convert angles to degrees
+    dftopo1['Sat.El'] = np.rad2deg(dftopo1['Sat.El'])
+    dftopo1['Sat.Az'] = np.rad2deg(dftopo1['Sat.Az'])
     
-    # Plotly express
+    
+    # Plotly express (color by access)
     fig = px.line_polar(dftopo1, r="Sat.El", theta="Sat.Az",
                         color="Access",
                         color_discrete_sequence=px.colors.sequential.Plasma_r)
+    
+    # Multicolored lines
+    # See: https://stackoverflow.com/questions/69705455/plotly-one-line-different-colors
+    
     
     
     # Remove gaps
@@ -634,3 +657,146 @@ def plot_overpass(dftopo, dfa):
     return
 
 
+def plot_overpass_magnitudes(dftopo, dfa):
+    
+    
+    # Bin data based on access time intervals
+    # See: https://towardsdatascience.com/how-i-customarily-bin-data-with-pandas-9303c9e4d946
+    
+    dftopo1 = dftopo.copy()
+    
+    # Compute visual magnitudes
+    Rsat = 1 # Radius of satellite (m)
+    msat = compute_visual_magnitude(dftopo1,Rsat,p=0.25,k=0.12,include_airmass=True) # With airmass
+    # msat = compute_visual_magnitude(dftopo1,Rsat,p=0.25,k=0.12,include_airmass=False) # Without airmass
+    dftopo1['Sat.Vmag'] = msat
+    
+    # Remove nan
+    dftopo1 = dftopo1[pd.notnull(dftopo1['Sat.Vmag'])]
+    
+    # Create bins of ranges for each access interval
+    ranges = pd.IntervalIndex.from_tuples(list(zip(dfa['Start'], dfa['Stop'])),closed='both')
+    labels = dfa.Access.astype(str).to_list()
+    # Apply cut to label access periods
+    dftopo1['Access'] = pd.cut(dftopo1['UTCG'], bins=ranges, labels=labels).map(dict(zip(ranges,labels)))
+    
+    # Remove non-access
+    dftopo1 = dftopo1[pd.notnull(dftopo1.Access)]
+    
+    # Remove -ve elevations
+    # dftopo1 = dftopo1[]
+    
+    # Add blank rows between groups of objects
+    grouped = dftopo1.groupby('Access')
+    dftopo1 = pd.concat([i.append({'Access': None}, ignore_index=True) for _, i in grouped]).reset_index(drop=True)
+    # Forward fill na in Access 
+    dftopo1.Access = dftopo1.Access.fillna(method="ffill")
+    
+    # Generate ticks for colorscale
+    Vmin = dftopo1['Sat.Vmag'].min() # Min (brightest)
+    Vmax = +30 # Limiting magnitude
+    cticks = np.arange(int((Vmin//5)*5.),int(Vmax)+5, 5)
+    
+    # Assign markersize
+    # Want to scale size of markers based on magnitude
+    # Values range from 
+    # (Brightest)    (Dimest)
+    # -2   0   2   4   6  ... 30 ...   70  
+    #                ^                    ^   
+    # 10                      1         
+    
+    # Size range
+    y1 = 5 # Max marker size
+    y2 = 0.1  # Min marker size
+    # Mag range
+    x1 = 0 # Min mag (brightest)
+    x2 = 30 # Max mag (dimmest)
+    
+    
+    # Set size
+    # See: https://github.com/eleanorlutz/western_constellations_atlas_of_space/blob/main/6_plot_maps.ipynb
+    
+    
+    dftopo1['size'] = np.nan # Initialize
+    dftopo1['size'] = y1 + ((y2-y1)/(x2-x1))*(dftopo1['Sat.Vmag'] - x1)
+    dftopo1['size'][dftopo1['size']<1] = 1 # Limit minimum size
+    dftopo1['size'][pd.isnull(dftopo1['size'])] = 1.
+    
+    # # Scaling markersize
+    # # See "Scaling the size of bubble charts" https://plotly.com/python/bubble-charts/
+    # # sizeref = 2.* max(array of size values) / (desired max size ** 2)
+    # max_marker_size = 10 # Desired maximum marker size
+    # max_val = (6.5 - 0)*5 # Magnitude 0 star
+    # sizeref = 2*max_val/(max_marker_size**2)
+    
+    fig = go.Figure(data=
+        go.Scatterpolar(
+            r = np.rad2deg(dftopo1['Sat.El']),
+            theta = np.rad2deg(dftopo1['Sat.Az']),
+            # fillcolor='black',
+            mode = 'markers+lines',
+            line=dict(width=0.2, 
+                       color='LightGrey',
+                      # color=dftopo1['Sat.Vmag'],colorscale='Blackbody',
+                      ),
+            marker_size = dftopo1['size'],marker_sizemode='area',
+            marker=dict(
+                # size=5,
+                # size=dftopo1['size'], #sizemode='area',sizeref=sizeref,sizemin=1,
+                # color=np.log10(dftopo1['Sat.Vmag']), # set color to an array/list of desired values
+                color=dftopo1['Sat.Vmag'],
+                colorscale='Viridis',   # 'greys','Blackbody','Viridis'
+                # autocolorscale='reversed',
+                cmin = min(cticks),
+                cmax = max(cticks),
+                # cmax = dftopo1['Sat.Vmag'].max(),
+                opacity=1.0,
+                line=dict(width=0.1, color='DarkSlateGrey'),
+                colorbar=dict(thickness=20,
+                              title='Vmag',
+                              # reversescale=True,
+                              # tickmode="array",ticktext=[100,0,-100],tickvals=[-100,0,100],
+                              tickmode="array",ticktext=np.flip(cticks),tickvals=cticks,
+                              )
+            ),
+        ))
+    
+    # Reverse polar axis
+    fig.update_layout(
+        polar = dict(
+          radialaxis = dict(range = [90,0]),
+          angularaxis = dict(
+                    tickfont_size=10,
+                    rotation=90, # start position of angular axis
+                    direction="clockwise",
+                    showticklabels = True,
+                    ticktext = ['0','1','2','3','4','5','6','7']
+                  )
+          ),
+        )
+    
+    # # Reverse colorbar axis
+    # fig.update_layout(
+    #     color = dict(
+    #       radialaxis = dict(range = [90,0]),
+    #       angularaxis = dict(
+    #                 tickfont_size=10,
+    #                 rotation=90, # start position of angular axis
+    #                 direction="clockwise",
+    #                 showticklabels = True,
+    #                 ticktext = ['0','1','2','3','4','5','6','7']
+    #               )
+    #       ),
+    #     )
+    
+    
+    
+    # # Change background color
+    fig.update_polars(bgcolor='black')
+    # fig.update_polars(bgcolor='white')
+
+    plotly.offline.plot(fig, validate=False)
+        
+    del dftopo1
+
+    return

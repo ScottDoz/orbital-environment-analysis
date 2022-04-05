@@ -531,41 +531,7 @@ def load_ephem_report_results(DATA_DIR=None):
     
     return df
 
-def compute_visual_magnitude(df):
-    
-    # Compute satellite apparent magnitude
-    # https://www.eso.org/~ohainaut/satellites/22_ConAn_Bassa_aa42101-21.pdf
-    # m_sat = m0 - 2.5*log10(p*Rsat^2) + 5*log10(dsat0*dsat)
-    #         - 2.5*log10( v(alpha0) ) + k*X
-    #
-    # where:
-    # m0 = -26.76 is the Solar V-band magnitude at Earth
-    #
-    # p*Rsat^2 is the photometric crossection
-    # p = satellite geometric albedo
-    # Rsat = radius of the (spherical) satellite
-    #
-    # dsat0 = distance from satellite to sun
-    # dsat = distance from observer to satellite
-    #
-    # # alpha0 = solar phase angle
-    # v(alpha0) = correction for solar phase angle (set at 1 to remove term)
-    #
-    # k = extinction coefficient (mag per unit airmass) = 0.12 in V-band
-    # X = 1/sin(El) = airmass in the plane-parallel approximation
-    # El = elevation above horizon
-    
-    
-    # TODO: Compute airmass using astropy.coordinates.AltAz
-    # https://docs.astropy.org/en/stable/api/astropy.coordinates.AltAz.html
-    
-    # Use airmass to compute atmospheric extinction
-    # m(X) = m0 + k*X
-    # where X = airmass, m=magnitude, k=extinction coefficient (mags/airmass)
-    # see: https://warwick.ac.uk/fac/sci/physics/research/astro/teaching/mpags/observing.pdf
-    
-    
-    return
+
 
 #%% Observation data from ephemeris
 
