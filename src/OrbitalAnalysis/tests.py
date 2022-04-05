@@ -433,6 +433,8 @@ def test_access():
     et = generate_et_vectors_from_GMAT_coverage(step, exclude_ends=True)
     start_et = et[0]
     stop_et = et[-1]
+    
+    # Compute line-of-sight access intervals
     access = find_access(start_et,stop_et,station='DSS-43')
     
     # Line-of-sight access (no constraints)
@@ -460,6 +462,30 @@ def test_access():
 
 
 #%% Plot Overpass
+
+def test_plot_access():
+    
+    # Generate ephemeris times
+    step = 10.
+    # step = 5.
+    et = generate_et_vectors_from_GMAT_coverage(step, exclude_ends=True)
+    start_et = et[0]
+    stop_et = et[-1]
+    
+    # Compute line-of-sight access intervals
+    access = find_access(start_et,stop_et,station='DSS-43')
+    
+    # Compute station lighting intervals
+    gslight, gsdark = find_station_lighting(start_et,stop_et,station='DSS-43')
+    
+    # Compute satellite lighting intervals
+    satlight, satpartial, satdark = find_sat_lighting(start_et,stop_et)
+    
+    # Plot
+    plot_access_times(access,gsdark,satlight,satpartial)
+    
+    
+    return
 
 def test_plot_overpass():
     

@@ -471,66 +471,58 @@ def plot_kde(df,xlabel,ylabel):
 
 #%% Overpass plots
 
-def plot_access_times(dfa,dfec):
+def plot_access_times(access,gsdark,satlight,satpartial):
     '''
     Generate a timeline plot showing the access intervals and lighting conditions
     of the satellite as seen from a groundstation.
 
+
     Parameters
     ----------
-    dfa : TYPE
-        Dataframe containing access results.
-    dfec : TYPE
-        Dataframe containing eclipse results.
+    access : SpiceCell
+        Window containing line-of-sight access intervals.
+    gsdark : SpiceCell
+        Window containing time intervals of station darkness.
+    satlight : SpiceCell
+        Window containing time intervals of sat full sunlight.
+    satpartial : SpiceCell
+        Window containing time intervals of sat partial sunlight.
 
     '''
-        
-    # Copy dataframes
-    dfa1 = dfa.copy()
-    dfec1 = dfec.copy()
     
-    # Add Lighting events
+    # Process interval sets
     
-    # Add blank rows between groups of objects
-    grouped = dfec1.groupby('EventNumber')
-    dfec1 = pd.concat([row.append({'EventNumber': None, 'Type':'Lighting'}, ignore_index=True) for i, row in grouped]).reset_index(drop=True)
-    # Find indices of lighting events
-    ind = dfec1.index[dfec1['Type']=='Lighting']
-    dfec1['Start'][ind] = dfec1['Stop'][ind-1]
-    dfec1['Stop'][ind[:-1] ] = dfec1['Start'][ind[:-1]+1]
-    # FIXME: extend final lighting period to end of scenario
+    # Access
+    dfa = window_to_dataframe(access,timefmt='datetime') # Access times (datetime)
+    dfa['trace'] = 'Access' # Trace label
+    dfa['Type'] = 'LOS Access' # Access type
     
-    # Process access data
-    dfa1['trace'] = 'Access' # Trace label
-    dfa1['Type'] = 'Access'  # Group label
-    dfa1['name'] = 'Access ' + dfa1['Access'].astype(str) # Name label
-    dfa1['color'] = 'blue' # Color all the same
+    # Groundstation dark
+    dfgs = window_to_dataframe(gsdark,timefmt='datetime') # Ground station dark times (datetime)
+    dfgs['trace'] = 'Station Lighting' # Trace label
+    dfgs['Type'] =  'GS Dark' # Trace label
     
-    # Process eclipse data
-    dfec1['trace'] = 'Sat Lighting'
-    dfec1['name'] = dfec1['Type']
-    dfec1['color'] = ''
-    dfec1['color'][dfec1['Type']=='Umbra'] = 'black'
-    dfec1['color'][dfec1['Type']=='Penumbra'] = 'orange'
+    # Satellite Sunlight
+    dfss = window_to_dataframe(satlight,timefmt='datetime') # Sat light times (datetime)
+    dfss['trace'] = 'Sat Lighting' # Trace label
+    dfss['Type'] =  'Sat Sun' # Trace label
     
-    # TODO: Add Sunlit periods
+    # Satellite Penumbra
+    dfsp = window_to_dataframe(satpartial,timefmt='datetime') # Sat light times (datetime)
+    dfsp['trace'] = 'Sat Lighting' # Trace label
+    dfsp['Type'] =  'Sat Penumbra' # Trace label
     
     # Compine dataframes
-    df = pd.concat( [dfa1[['Start', 'Stop', 'Duration','Type','trace','color','name']],
-                     dfec1[['Start', 'Stop', 'Duration','Type','trace','color','name']],
+    df = pd.concat( [dfgs[['Start', 'Stop', 'Duration','Type','trace']],
+                     dfss[['Start', 'Stop', 'Duration','Type','trace']],
+                     dfsp[['Start', 'Stop', 'Duration','Type','trace']],
+                     dfa[['Start', 'Stop', 'Duration','Type','trace']],
                      ])
-    
-    
-    # Plot access times using a Gannt chart
-    
-    import plotly.graph_objects as go
-    import plotly.express as px
-    import plotly
     
     
     # Create gant chart
     fig = px.timeline(df, x_start="Start", x_end="Stop", y="trace", color="Type",
-                      color_discrete_sequence=["blue", "black", "grey", "goldenrod"],
+                      color_discrete_sequence=["black","goldenrod","grey","blue"],
                       )
     
     # Update bar height
@@ -550,11 +542,6 @@ def plot_access_times(dfa,dfec):
             type="date"
         )
     )
-        
-    
-    # Reset dataframes
-    del dfa1
-    del dfec1
     
     # Render
     filename = 'AccessPeriods.html'
@@ -562,6 +549,7 @@ def plot_access_times(dfa,dfec):
     
     
     return
+
 
 def plot_overpass(dftopo, dfa):
     
