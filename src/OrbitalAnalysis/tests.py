@@ -178,7 +178,7 @@ def test_distances():
 # Methods from the Overpass.py module for generating analyzing access between
 # a target satellite and a series of ground stations.
 
-def test_compute_access_GMAT():
+def test_configure_run_GMAT():
     '''
     Configure and run GMAT access script with user-defined sat and groundstation
     '''
@@ -213,7 +213,7 @@ def test_compute_access_GMAT():
     
     
     # Run
-    compute_access_GMAT(sat_dict, gs_dict, duration, timestep)
+    configure_run_GMAT(sat_dict, gs_dict, duration, timestep)
     
     return
 
@@ -230,6 +230,20 @@ def test_load_GMAT_results():
     # dfobs = load_ephem_report_results()
     
     return dfa, dfec
+
+def test_optical_analysis():
+    ''' 
+    Compute lighting and access intervals for the current scenario.
+    Use these to compute optical metrics for average duration, interval.
+    '''
+    
+    # Run the scneario
+    # test_configure_run_GMAT()
+    
+    # Optical analysis workflow
+    results = optical_analysis()
+    
+    return results
 
 
 #%% Ephemerides
@@ -472,17 +486,17 @@ def test_plot_access():
     start_et = et[0]
     stop_et = et[-1]
     
-    # Compute line-of-sight access intervals
-    access = find_access(start_et,stop_et,station='DSS-43')
+    # Compute satellite lighting intervals
+    satlight, satpartial, satdark = find_sat_lighting(start_et,stop_et)
     
     # Compute station lighting intervals
     gslight, gsdark = find_station_lighting(start_et,stop_et,station='DSS-43')
     
-    # Compute satellite lighting intervals
-    satlight, satpartial, satdark = find_sat_lighting(start_et,stop_et)
+    # Compute line-of-sight access intervals
+    access = find_access(start_et,stop_et,station='DSS-43')
     
     # Plot
-    plot_access_times(access,gsdark,satlight,satpartial)
+    plot_access_times(access,gslight,gsdark,satlight, satpartial, satdark)
     
     
     return

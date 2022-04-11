@@ -6,8 +6,9 @@ Created on Wed Mar  9 18:40:50 2022
 
 Overpass Module
 -------------------
+Functions dealing with the setup of the scenario.
 
-- compute access intervals between target satellite and groundstations using GMAT
+- configuring and running GMAT scripts
 - analyse statistics of the overpasses
 
 Note: the NAIF of the spacecraft in the output ephemeris file is
@@ -19,6 +20,7 @@ import pandas as pd
 import numpy as np
 import os
 from pathlib import Path
+from tqdm import tqdm
 
 import pdb
 
@@ -28,77 +30,32 @@ import spiceypy as spice
 # Module imports
 from SatelliteData import query_norad
 from utils import get_data_home
+from Ephem import *
+from Visualization import plot_time_windows
 
 # Load GMAT
 from load_gmat import *
 
+#%% Main Analysis Workflow
 
-
-#%% Ground Stations
-
-def get_groundstations():
-    ''' Get the lat/long/alt coordinates of the custom groundstation network '''
-    
-    # Hardcoded facility positions
-    facility_positions = [(-37.603, 140.388, 0.013851), (-45.639, 167.361, 0.344510), (-44.040, -176.375, 0.104582),
-                          (-43.940, -72.450, 0.075715), (-51.655, -58.681, 0.127896), (-34.070, 19.703, 0.416372),
-                          (-34.285, 115.934, 0.134033), (-49.530, 69.910, 0.199042), (18.872, -103.290, 0.735454),
-                          (-15.096, -44.836, 0.697796), (-15.099, 15.875, 1.365027),
-                          (-15.818, 45.893, -0.007232), (5.159, -53.637, 0.037340), (7.612, 134.631, 0.138556),
-                          (-15.531, 134.143, 0.196179), (-22.500, 113.989, 0.068118), (-7.261, 72.376, -0.064980),
-                          (-15.273, 166.878, 0.196300), (-13.890, -171.938, 0.392109), (18.532, -74.135, 0.291372),
-                          (-9.798, -139.073, 0.845423), (-27.128, -109.355, 0.149995), (-7.947, -14.370, 0.216315),
-                          (6.890, 158.216, 0.311603), (16.899, 102.561, 0.167567), (15.097, -15.726, 0.087358),
-                          (14.846, 14.217, 0.359288), (14.846, 44.914, 2.071660), (17.396, 76.263, 0.382021),
-                          (19.787, -155.658, 1.517667), (-15.450, -73.848, 4.202630), (44.676, -105.521, 1.249258),
-                          (44.554, -75.459, 0.070607), (40.506, -124.123, 0.002242),
-                          (43.040, -8.992, 0.411682), (47.014, -53.061, 0.191380), (45.481, 15.224, 0.252010),
-                          (44.891, 44.590, 0.085764), (44.537, 75.371, 0.340541), (44.384, 104.729, 1.223731),
-                          (45.271, 135.576, 0.399098), (53.312, 159.728, 0.536244), (55.395, -162.156, 0.673701),
-                          (70.024, -162.191, 0.013845), (69.175, 18.258, 0.314617), (67.922, -103.469, -0.005155),
-                          (74.757, -46.014, 2.651167), (72.423, 75.289, 0.011348), (71.372, 136.045, 0.010589)]
-    
-    # Load into dataframe
-    df = pd.DataFrame()
-    df['Lat'] = [x[0] for x in facility_positions]  # Latitude (deg)
-    df['Long'] = [x[1] for x in facility_positions] # Longitude (deg)
-    df['El'] = [x[2] for x in facility_positions]  # Elevation (km)
-    
-    # Ensure 0 < Long < 360
-    df['Long'][df.Long < 0.] += 360.
-    
-    return df
-
-# DSN Ground stations defined in the earthstns_itrf93_201023.bsp file
-# Use COMMNT command line tool to view.
+# 1. Inputs
+#    - define Satellite COEs, and groundstation locations
 #
-# Antenna   NAIF    Diameter   x (m)            y (m)           z (m)
-# 
-# DSS-13    399013  34m     -2351112.659    -4655530.636    +3660912.728
-# DSS-14    399014  70m     -2353621.420    -4641341.472    +3677052.318
-# DSS-15    399015  34m     -2353538.958    -4641649.429    +3676669.984 {3}
-# DSS-24    399024  34m     -2354906.711    -4646840.095    +3669242.325
-# DSS-25    399025  34m     -2355022.014    -4646953.204    +3669040.567
-# DSS-26    399026  34m     -2354890.797    -4647166.328    +3668871.755
-# DSS-34    399034  34m     -4461147.093    +2682439.239    -3674393.133 {1}
-# DSS-35    399035  34m     -4461273.090    +2682568.925    -3674152.093 {1}
-# DSS-36    399036  34m     -4461168.415    +2682814.657    -3674083.901 {1}
-# DSS-43    399043  70m     -4460894.917    +2682361.507    -3674748.152
-# DSS-45    399045  34m     -4460935.578    +2682765.661    -3674380.982 {3}
-# DSS-53    399053  34m     +4849339.965     -360658.246    +4114747.290 {2}
-# DSS-54    399054  34m     +4849434.488     -360723.8999   +4114618.835
-# DSS-55    399055  34m     +4849525.256     -360606.0932   +4114495.084
-# DSS-56    399056  34m     +4849421.679     -360549.659    +4114646.987
-# DSS-63    399063  70m     +4849092.518     -360180.3480   +4115109.251
-# DSS-65    399065  34m     +4849339.634     -360427.6637   +4114750.733
+# 2. Generate Spice Files
+#    - configure and run GMAT script to generate required files
+#    - alternatively, generate files using SPICE
+#
+# 3. Compute Lighting and Access
+#    - satellite lighting, groundstation lighting
+#    - line-of-sight access, visible access
 
 
+#%% GMAT Scenario
 
-#%% Compute access using GMAT
-
-def compute_access_GMAT(sat_dict, gs_dict, duration=10., timestep=60., out_dir=None):
+def configure_run_GMAT(sat_dict, gs_dict, duration=10., timestep=60., out_dir=None):
     '''
-    Compute access between a satellite and groundstation using GMAT.
+    Configure and run a GMAT script to compute access between a satellite and 
+    groundstation.
     
     This script configures a template GMAT script with custom satellite and
     groundstation parameters, runs the script and saves data into a defined
@@ -242,7 +199,6 @@ def get_GMAT_coverage(DATA_DIR=None):
     the start/stop dates in both ISO dates and ephemeris time (ET).
 
     '''
-    
     
     # Set default data dir
     if DATA_DIR is None:
@@ -443,8 +399,6 @@ def load_sat_eclipse_results(DATA_DIR=None):
     
     return df
 
-
-
 def load_ephem_report_results(DATA_DIR=None):
     '''
     Depreciated. Use Ephem.get_ephem_TOPO()
@@ -492,9 +446,29 @@ def load_ephem_report_results(DATA_DIR=None):
     # Computations
     
     # Add Sun position
-    sunpos_j2000, sunpos_iau_earth = get_sun_ephem(et)
-    df[['Sun.J2000.X','Sun.J2000.Y','Sun.J2000.Z']] = sunpos_j2000
+    # GMAT does not calculate sun position correctly. Generate from SPICE.
+    # Load kernels
+    kernel_dir = get_data_home()  / 'Kernels'
+    spice.furnsh( str(kernel_dir/'naif0012.tls') ) # Leap second kernel
+    spice.furnsh( str(kernel_dir/'pck00010.tpc') ) # Planetary constants kernel
+    spice.furnsh( str(kernel_dir/'de440s.bsp') )   # Leap second kernel
     
+    # Apparent position of Earth relative to the Moon's center in the IAU_MOON frame.
+    targ = 'Sun'  # Target body
+    ref =  'J2000'     # Reference frame 'J2000' or 'iau_earth'
+    abcorr = 'lt+s'   # Aberration correction flag.
+    obs = 'Earth'     # Observing body name
+    # List of reference frames: https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/frames.html
+    
+    # Earth Inertial Frame (J2000) 
+    [sv_j2000, ltime] = spice.spkpos(targ, et, 'J2000', abcorr, obs) # Inertial state
+    sunpos_j2000 = np.array(sv_j2000) # Position vector as numpy
+    # Earth Body-fixed Frame (iau_earth)
+    [sv_iau_earth, ltime] = spice.spkpos(targ, et, 'iau_earth', abcorr, obs) # Inertial state
+    sunpos_iau_earth = np.array(sv_iau_earth) # Position vector as numpy
+    
+    # Add to dataframe
+    df[['Sun.J2000.X','Sun.J2000.Y','Sun.J2000.Z']] = sunpos_j2000 
     
     
     
@@ -531,117 +505,125 @@ def load_ephem_report_results(DATA_DIR=None):
     
     return df
 
+#%% Optical Analysis Workflow
+
+def optical_analysis(DATA_DIR=None):
+    ''' 
+    Main function to compute all lighting and access intervals for the defined
+    scenario. Also compute metrics for the optical trackability of the satellite.
+    '''
+    
+    # Generate ephemeris times covering GMAT scenario
+    step = 10.
+    et = generate_et_vectors_from_GMAT_coverage(step, exclude_ends=True)
+    start_et = et[0]
+    stop_et = et[-1]
+    scenario_duration = stop_et - start_et # Length of scenario (s)
+    # Create confinement window for scenario
+    cnfine = spice.cell_double(2*100) # Initialize window of interest
+    spice.wninsd(start_et, stop_et, cnfine ) # Insert time interval in window
+    
+    
+    # Get list of stations
+    stations = ['DSS-43','DSS-14','DSS-63']
+    colors = ['black','black','black']
+    # DSS-43 : Canberra 70m Dish
+    # DSS-14 : Goldstone 70m
+    # DSS-63 : Madrid 70m
+    
+    # Compute satellite lighting intervals
+    satlight, satpartial, satdark = find_sat_lighting(start_et,stop_et)
+    
+    # Loop through ground stations and compute lighting and access intervals
+    access_list = [] # List of visible access interval of stations
+    num_access_list = [] # List of numbers of access
+    total_access_list = [] # List of total access durations
+    shortest_access_list = [] # List of shortest access durations
+    longest_access_list = [] # List of longest access durations
+    avg_pass_list = [] # List of average pass durations
+    avg_coverage_list = [] # List of average coverage fractions
+    num_gaps_list = [] # List of number of gaps in access
+    avg_interval1_list = [] # List of average interval durations (definition 1)
+    avg_interval2_list = [] # List of agerage interval durations (definition 2)
+    print('Computing Lighting and Access intervals', flush=True)
+    print('Stations: {}'.format(stations),flush=True)
+    for gs in tqdm(stations):
+        
+        # Compute station lighting intervals
+        gslight, gsdark = find_station_lighting(start_et,stop_et,station=gs)
+    
+        # Compute line-of-sight access intervals
+        los_access = find_access(start_et,stop_et,station=gs)
+        
+        # Compute visible (constrained) access intervals
+        access = constrain_access_by_lighting(los_access,gslight,satdark)
+        
+        
+        # Compute non-access intervals (complement of access periods)
+        gap = spice.wncomd(start_et,stop_et,access)
+        
+        
+        # Compute access metrics (avg_pass, avg_coverage, avg_interval)
+        dfvis = window_to_dataframe(access,timefmt='ET') # Load as dataframe
+        num_access = len(dfvis) # Number of access intervals
+        total_access = dfvis.Duration.sum() # Total duration of access (s)
+        shortest_access = dfvis.Duration.min() # Shortest access duration (s)
+        longest_access = dfvis.Duration.max() # Longest access duration (s)
+        avg_pass = total_access / num_access # Average duration of access intervals (s)
+        avg_coverage = total_access / scenario_duration # Fraction of coverage
+        # Compute interval metrics avg_interval
+        dfgap = window_to_dataframe(gap,timefmt='ET') # Load as dataframe
+        num_gaps = len(dfgap)   # Number of gaps
+        avg_interval1 = ( scenario_duration - total_access) / num_access # Definition 1
+        avg_interval2 = dfgap.Duration.sum() / num_gaps # Definition 1
+
+        # Append results to lists
+        access_list.append(access) # Append to list of station access intervals
+        num_access_list.append(num_access)
+        total_access_list.append(total_access)
+        shortest_access_list.append(shortest_access)
+        longest_access_list.append(longest_access)
+        avg_pass_list.append(avg_pass)
+        avg_coverage_list.append(avg_coverage)
+        num_gaps_list.append(num_gaps)
+        avg_interval1_list.append(avg_interval1)
+        avg_interval2_list.append(avg_interval2)
+        
+    # *** Should metrics be computed each station or on combined??? ***
+    
+    # Compute combined access intervals
+    combinedaccess = access_list[0] # First station
+    if len(access_list)>1:
+        for win in access_list[1:]:
+            combinedaccess = spice.wnunid(combinedaccess,win) # Union of intervals
+    
+    # Generate results for each station
+    results = pd.DataFrame(columns=['Station',
+                                    'num_access','total_access','shortest_access','longest_access','avg_pass',
+                                    'avg_coverage','num_gaps','avg_interval1','avg_interval2'])
+    results['Station'] = stations
+    results['num_access'] = num_access_list
+    results['total_access'] = total_access_list
+    results['shortest_access'] = shortest_access_list
+    results['longest_access'] = longest_access_list
+    results['avg_pass'] = avg_pass_list
+    results['avg_coverage'] = avg_coverage_list
+    results['num_gaps'] = num_gaps_list
+    results['avg_interval1'] = avg_interval1_list
+    results['avg_interval2'] = avg_interval2_list
+    
+    # Exchange rows/columns
+    results = results.T
+    # results.columns = results.iloc[0].to_list()
+    print('')
+    print(results)
+    
+    # Plot the access periods
+    plot_time_windows(access_list+[combinedaccess],stations+['Combined'],stations+['Combined'],colors+['red'])
+    
+    return results
 
 
-#%% Observation data from ephemeris
-
-def get_sun_ephem(et):
-    
-    # Set directory to save into
-    kernel_dir = get_data_home()  / 'Kernels'
-    
-    # Load kernels
-    spice.furnsh( str(kernel_dir/'naif0012.tls') ) # Leap second kernel
-    spice.furnsh( str(kernel_dir/'pck00010.tpc') ) # Planetary constants kernel
-    spice.furnsh( str(kernel_dir/'de440s.bsp') )   # Leap second kernel
-    
-    # Apparent position of Earth relative to the Moon's center in the IAU_MOON frame.
-    targ = 'Sun'  # Target body
-    ref =  'J2000'     # Reference frame 'J2000' or 'iau_earth'
-    abcorr = 'lt+s'   # Aberration correction flag.
-    obs = 'Earth'     # Observing body name
-    # List of reference frames: https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/frames.html
-    
-    # Earth Inertial Frame (J2000) 
-    [sv_j2000, ltime] = spice.spkpos(targ, et, 'J2000', abcorr, obs) # Inertial state
-    sunpos_j2000 = np.array(sv_j2000) # Position vector as numpy
-    # Earth Body-fixed Frame (iau_earth)
-    [sv_iau_earth, ltime] = spice.spkpos(targ, et, 'iau_earth', abcorr, obs) # Inertial state
-    sunpos_iau_earth = np.array(sv_iau_earth) # Position vector as numpy
-    
-    return sunpos_j2000, sunpos_iau_earth
-
-
-def get_sc_ephem(et):
-    
-    # Extract ephemeris of spacecraft from file
-    
-    # Set directory to save into
-    kernel_dir = get_data_home()  / 'Kernels'
-    sat_ephem_file = str(get_data_home()/'GMATscripts'/'Access'/'EphemerisFile1.bsp')
-    
-    # Load kernels
-    spice.furnsh( str(kernel_dir/'naif0012.tls') ) # Leap second kernel
-    spice.furnsh( str(kernel_dir/'pck00010.tpc') ) # Planetary constants kernel
-    spice.furnsh( str(kernel_dir/'de440s.bsp') )   # Solar System ephemeris
-    spice.furnsh(str(get_data_home()/'GMATscripts'/'Access'/'EphemerisFile1.bsp'))
-    
-    # TODO: Create frame kernels for the ground stations
-    # see: https://naif.jpl.nasa.gov/pub/naif/utilities/PC_Windows_64bit/pinpoint.ug
-    
-    
-    # Get the NAIF IDs of the objects in the file
-    ids = spice.spkobj(sat_ephem_file) # SpiceCell object
-    numobj = len(ids)
-    NAIF = ids[0] # -10002001 NAIF of the satellite
-    
-    # Get the coverage of the spk file
-    # Coverage time is in et
-    cov = spice.spkcov(sat_ephem_file,ids[0]) # SpiceCell object
-    start_et, stop_et = cov
-    
-    
-    # Apparent position of Earth relative to the Moon's center in the IAU_MOON frame.
-    targ = str(NAIF)  # Target body
-    ref = 'J2000'     # Reference frame 'J2000' or 'iau_earth'
-    abcorr = 'lt+s'   # Aberration correction flag.
-    obs = 'Earth'     # Observing body name
-    # List of reference frames: https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/frames.html
-    [state_inert, ltime] = spice.spkpos(targ, et[1:-1], 'J2000', abcorr, obs) # Inertial state
-    [state_bf, ltime] = spice.spkpos(targ, et[1:-1], 'iau_earth', abcorr, obs)    # Earth Body-fixed
-    Earthpos = np.array(imoonv) # Position vector as numpy
-    
-    
-    
-    
-    return
-
-def get_station_ephem(et):
-    
-    # Load kernel earthstns_itrf93_201023
-    
-    # Set directory to save into
-    kernel_dir = get_data_home()  / 'Kernels'
-    # sat_ephem_file = str(get_data_home()/'GMATscripts'/'Access'/'EphemerisFile1.bsp')
-    station_file = str(kernel_dir/'earthstns_itrf93_201023.bsp')
-    
-    # Load kernels
-    spice.furnsh( str(kernel_dir/'naif0012.tls') ) # Leap second kernel
-    spice.furnsh( str(kernel_dir/'pck00010.tpc') ) # Planetary constants kernel
-    spice.furnsh( str(kernel_dir/'de440s.bsp') )   # Solar System ephemeris
-    spice.furnsh( str(kernel_dir/'earth_assoc_itrf93.tf') ) # ITRF93 frame kernel
-    spice.furnsh( str(kernel_dir/'earthstns_itrf93_201023.bsp') ) # Stations ephemerides
-    
-    
-    
-    
-    # Get the NAIF IDs of the objects in the file
-    ids = spice.spkobj(station_file) # SpiceCell object
-    numobj = len(ids)
-    stationIDs = [ids[i] for i in range(numobj)] # -10002001 NAIF of the satellite
-    
-    # Apparent position of Earth relative to the Moon's center in the IAU_MOON frame.
-    targ = str(stationIDs[0])  # Target body
-    ref = 'J2000'     # Reference frame 'J2000' or 'iau_earth'
-    abcorr = 'lt+s'   # Aberration correction flag.
-    obs = 'Earth'     # Observing body name
-    # List of reference frames: https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/frames.html
-    [state_inert, ltime] = spice.spkpos(targ, et[1:-1], 'J2000', abcorr, obs) # Inertial state
-    [state_bf, ltime] = spice.spkpos(targ, et[1:-1], 'iau_earth', abcorr, obs)    # Earth Body-fixed
-    Earthpos = np.array(imoonv) # Position vector as numpy
-    
-    
-    return
 
 
 #%% Notes on access

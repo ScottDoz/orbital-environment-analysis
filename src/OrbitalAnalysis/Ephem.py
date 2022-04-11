@@ -8,7 +8,7 @@ Ephemeris module
 ---------------
 
 Contains functions for extracting ephemerides of the satellite, sun, moon, and
-groundstations.
+groundstations, and computing lighting and access conditions.
 
 
 Note: use fo the cspice command line tools requires downloading and installing
@@ -499,7 +499,6 @@ def get_ephem_TOPO(et,groundstations=['DSS-43']):
 
     return dfs
 
-
 #%% Visual Mangitude
 
 def compute_visual_magnitude(dftopo,Rsat,p=0.25,k=0.12,include_airmass=True):
@@ -604,7 +603,7 @@ def create_timewindow(start_et, stop_et, NINT):
     return cnfine
 
 
-#%% Find Eclipse times
+#%% Lighting Conditions
 # Use https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/cspice/gfoclt_c.html
 # To find eclipse times
 
@@ -851,11 +850,38 @@ def find_station_lighting(start_et,stop_et,station='DSS-43'):
     return light, dark
 
 
+#%% Access
+
 def find_access(start_et,stop_et,station='DSS-43'):
+    '''
+    Find time intervals when a ground station has line-of-sight access to a
+    satellite - when the satellite is above a minimum elevation angle in the
+    local topocentric frame.
+    
+    Utilizes SPICE gfposc_c - Geometry finder using observer-target position vectors.
+    "Determine time intervals for which a coordinate of an observer-target 
+    position vector satisfies a numerical constraint."
+
+    This workflow is also used internally within GMATs ContactLocator.
+
+    Parameters
+    ----------
+    start_et : TYPE
+        DESCRIPTION.
+    stop_et : TYPE
+        DESCRIPTION.
+    station : TYPE, optional
+        DESCRIPTION. The default is 'DSS-43'.
+
+    Returns
+    -------
+    access : TYPE
+        DESCRIPTION.
+
+    '''
     
     # From documentation, GMAT uses gfposc to perform line-of-sight search above
     # a minimum elevation angle.
-    
     
     # Kernel file directory
     kernel_dir = get_data_home()  / 'Kernels'
@@ -911,6 +937,41 @@ def find_access(start_et,stop_et,station='DSS-43'):
                      refval,adjust,step,MAXWIN,cnfine,access)
     
     return access
+
+def constrain_access_by_lighting(access,gslight,satdark):
+    '''
+    Constrain the line-of-sight access intervals by the lighting conditions of
+    the satellite and groundstation. Use SPICE window logical set functions to
+    remove intervals when the station is in sunlight and when the satellite is
+    in darkness.
+    
+    Visaccess = access - gslight - satdark
+
+    Parameters
+    ----------
+    access : SpiceCell
+        Time intervals for line-of-sight access from station to satellite.
+    gslight : TYPE
+        Time intervals for sunlight of the station.
+    satdark : TYPE
+        Time intervals for darkness of the satellite.
+
+    Returns
+    -------
+    visaccess : TYPE
+        Constrained time intervals for visible access from station to satellite.
+
+    '''
+    
+    # Use spice window functions to compute the set differences
+    # visaccess = access - gslight -satdark
+    visaccess = spice.wndifd(access,gslight) # Subtract station daylight
+    visaccess = spice.wndifd(visaccess,satdark) # Subtract sat darkness
+    
+    return visaccess
+
+
+#%% Utility functions
 
 def window_to_dataframe(cnfine,timefmt='ET',method='loop'):
     '''

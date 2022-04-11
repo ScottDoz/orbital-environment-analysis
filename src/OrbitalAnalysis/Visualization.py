@@ -13,6 +13,7 @@ Plotly-based interactive visualizations
 
 import pandas as pd
 import numpy as np
+import spiceypy as spice
 
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
@@ -469,9 +470,55 @@ def plot_kde(df,xlabel,ylabel):
     
     return
 
+#%% Plot Timeframes
+
+def plot_time_windows(wins,groups,Types,colors):
+    
+    df_list = []
+    for i in range(len(wins)):
+        
+        # Convert window to dataframe
+        win = wins[i] # Extract window
+        dfi = window_to_dataframe(win,timefmt='datetime') # Access times (datetime)
+        dfi['group'] = groups[i] # y-labels
+        dfi['Type'] = Types[i] # Types
+        df_list.append(dfi) # Append to list
+    
+    # Concat all dataframes
+    df = pd.concat(df_list)
+    
+    # Create gant chart
+    fig = px.timeline(df, x_start="Start", x_end="Stop", y="group", color="Type",
+                      color_discrete_sequence=colors,
+                      )
+    
+    # Update bar height
+    BARHEIGHT = .1
+    fig.update_layout(
+        yaxis={"domain": [max(1 - (BARHEIGHT * len(fig.data)), 0), 1]}, margin={"t": 0, "b": 0}
+    )
+    
+    # Add range slider
+    fig.update_layout(
+        xaxis=dict(
+            rangeselector=dict(
+            ),
+            rangeslider=dict(
+                visible=True
+            ),
+            type="date"
+        )
+    )
+    
+    # Render
+    plotly.offline.plot(fig, validate=False)
+
+    
+    return
+
 #%% Overpass plots
 
-def plot_access_times(access,gsdark,satlight,satpartial):
+def plot_access_times(access,gslight,gsdark,satlight, satpartial, satdark):
     '''
     Generate a timeline plot showing the access intervals and lighting conditions
     of the satellite as seen from a groundstation.
@@ -492,10 +539,20 @@ def plot_access_times(access,gsdark,satlight,satpartial):
     
     # Process interval sets
     
-    # Access
+    # Line-of-sight Access
     dfa = window_to_dataframe(access,timefmt='datetime') # Access times (datetime)
-    dfa['trace'] = 'Access' # Trace label
-    dfa['Type'] = 'LOS Access' # Access type
+    dfa['trace'] = 'Viewing Geometry' # Trace label
+    dfa['Type'] = 'Above horizon' # Access type
+    
+    # Visible Access
+    # Compute set difference
+    # visaccess = access - gslight -satdark
+    vis = spice.wndifd(access,gslight) # Subtract station daylight
+    vis = spice.wndifd(vis,satdark) # Subtract sat darkness
+    dfvis = window_to_dataframe(vis,timefmt='datetime') # Access times (datetime)
+    dfvis['trace'] = 'Visibility' # Trace label
+    dfvis['Type'] = 'Visible Access' # Access type
+    
     
     # Groundstation dark
     dfgs = window_to_dataframe(gsdark,timefmt='datetime') # Ground station dark times (datetime)
@@ -517,12 +574,13 @@ def plot_access_times(access,gsdark,satlight,satpartial):
                      dfss[['Start', 'Stop', 'Duration','Type','trace']],
                      dfsp[['Start', 'Stop', 'Duration','Type','trace']],
                      dfa[['Start', 'Stop', 'Duration','Type','trace']],
+                     dfvis[['Start', 'Stop', 'Duration','Type','trace']],
                      ])
     
     
     # Create gant chart
     fig = px.timeline(df, x_start="Start", x_end="Stop", y="trace", color="Type",
-                      color_discrete_sequence=["black","goldenrod","grey","blue"],
+                      color_discrete_sequence=["black","goldenrod","grey","blue","red"],
                       )
     
     # Update bar height
