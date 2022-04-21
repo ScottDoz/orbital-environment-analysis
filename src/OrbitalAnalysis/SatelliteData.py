@@ -20,6 +20,7 @@ import numpy as np
 from pathlib import Path
 import os
 import configparser
+import spiceypy as spice
 
 import pdb
 
@@ -213,6 +214,52 @@ def download_all_spacetrack():
     return
 
 #%% Query TLEs by NORAD
+
+def get_tle(ID,epoch='latest',tle_type='3le'):
+    ''' Query TLEs for a single NORAD ID return a list of the lines '''
+    
+    # Read spacetrack email and password from config.ini
+    config = configparser.ConfigParser()
+    config.read('config.ini')
+    email = config['Spacetrack']['email']
+    pw = config['Spacetrack']['pw']
+    
+    # Get data directory
+    DATA_DIR = get_data_home()
+    
+    # Set up connection to client 
+    from spacetrack import SpaceTrackClient
+    import spacetrack.operators as op
+    st = SpaceTrackClient(email, pw)
+    
+    # Query TLE string from Spacetrack
+    if epoch=='latest':
+        # Get the latest tle
+        tle_string = st.tle_latest(norad_cat_id=ID, ordinal=1, format=tle_type)
+        tle_lines = tle_string.strip().splitlines() # Separated lines
+    else:
+        
+        # Create time range
+        start_et = epoch[0]
+        stop_et = epoch[1]
+        d1 = spice.et2datetime(start_et)
+        d2 = spice.et2datetime(stop_et)
+        drange = op.inclusive_range(d1,d2)
+        # Remove any extra time portions
+        drange = drange.replace('+00:00','')
+        # drange = '2020-10-26 16:00:00--2020-11-25 15:59:59.999495'
+        lines = st.tle_publish(norad_cat_id=ID,iter_lines=True, publish_epoch=drange, orderby='TLE_LINE1', format='tle')
+        
+        # Extract lines
+        tle_lines = [line for line in lines]
+        
+    # # Load data into TLE object
+    # from tletools import TLE
+    # tle = TLE.from_lines(*tle_lines)
+    # data = tle.__dict__ # Extract data as dictionary
+    
+    return tle_lines
+
 
 def query_norad(IDs,compute_params=True):
     '''

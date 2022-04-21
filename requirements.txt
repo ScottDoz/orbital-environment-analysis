@@ -1,5 +1,7 @@
+gsp4
 natsort
 numpy
 pandas
 spacetrack
+spiceypy
 TLE-tools

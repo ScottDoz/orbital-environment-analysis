@@ -17,6 +17,8 @@ from DistanceAnalysis import *
 from Visualization import *
 from Overpass import *
 from Ephem import *
+from Events import *
+from GmatScenario import *
 
 #%% Satellite Data Loading
 # Methods from SatelliteData.py module to load orbital elements of satellites.
@@ -174,8 +176,8 @@ def test_distances():
     
     return df
 
-#%% Overpass 
-# Methods from the Overpass.py module for generating analyzing access between
+#%% GmatScenario
+# Methods from the GmatScenario.py module for generating analyzing access between
 # a target satellite and a series of ground stations.
 
 def test_configure_run_GMAT():
@@ -184,13 +186,13 @@ def test_configure_run_GMAT():
     '''
     
     # Define satellite properties in dictionary
-    # sat_dict = {"DateFormat": "UTCGregorian", "Epoch": '26 Oct 2020 16:00:00.000',
-    #             "SMA": 6963.0, "ECC": 0.0188, "INC": 97.60,
-    #             "RAAN": 308.90, "AOP": 81.20, "TA": 0.00}
-    
     sat_dict = {"DateFormat": "UTCGregorian", "Epoch": '26 Oct 2020 16:00:00.000',
-                "SMA": 6963.0, "ECC": 0.0188, "INC": 60.60,
+                "SMA": 6963.0, "ECC": 0.0188, "INC": 97.60,
                 "RAAN": 308.90, "AOP": 81.20, "TA": 0.00}
+    
+    # sat_dict = {"DateFormat": "UTCGregorian", "Epoch": '26 Oct 2020 16:00:00.000',
+    #             "SMA": 6963.0, "ECC": 0.0188, "INC": 60.60,
+    #             "RAAN": 308.90, "AOP": 81.20, "TA": 0.00}
     
     # # Define groundstation properties in dictionary
     # gs_dict = {"Location1": 72.03, "Location2": 123.435, "Location3": 0.0460127,
@@ -208,7 +210,7 @@ def test_configure_run_GMAT():
     # (35.402, 148.98, 0.6893)
     
     # Define propagation settings
-    duration = 10. # Propagation duration (days)
+    duration = 30. # Propagation duration (days)
     timestep = 30. # Propagation timestep (s)
     
     
@@ -231,22 +233,55 @@ def test_load_GMAT_results():
     
     return dfa, dfec
 
-def test_optical_analysis():
-    ''' 
-    Compute lighting and access intervals for the current scenario.
-    Use these to compute optical metrics for average duration, interval.
+
+#%% Overpass
+# Main module
+
+def test_analysis():
+    '''
+    Run an analysis. 
+    Generating SPK files for a user-defined satellite.
+    Run optical analysis to compute optical metrics for average duration, interval.
     '''
     
-    # Run the scneario
-    # test_configure_run_GMAT()
+    # INPUTS
+    NORAD = 25544 # NORAD ID of satellite e.g. 25544 for ISS
+    start_date = '2020-10-26 16:00:00.000' # Start Date e.g. '2020-10-26 16:00:00.000'
+    stop_date =  '2020-11-25 15:59:59.999' # Stop Date e.g.  '2020-11-25 15:59:59.999'
+    step = 10. # Time step (sec)
+    sat_dict = {"DateFormat": "UTCGregorian", "Epoch": '26 Oct 2020 16:00:00.000',
+                "SMA": 6963.0, "ECC": 0.0188, "INC": 97.60,
+                "RAAN": 308.90, "AOP": 81.20, "TA": 0.00}
     
-    # Optical analysis workflow
-    results = optical_analysis()
+    
+    # Create Sat.bsp
+    # create_files(NORAD,start_date,stop_date,step,method='tle') # From TLE
+    create_files(sat_dict,start_date,stop_date,step,method='two-body') # From TLE
+    
+    # Optical anayslis
+    results = optical_analysis(start_date,stop_date,step)
     
     return results
 
 
 #%% Ephemerides
+
+def test_create_satellite_ephem():
+    
+    # Define satellite properties in dictionary
+    sat = 25544 # NORAD ID (ISS)
+    
+    # Generate ephemeris times
+    cov = get_GMAT_coverage()
+    step = 10.
+    start_et = cov['start_et']
+    stop_et = cov['stop_et']
+    
+    # Create ephem
+    create_satellite_ephem(sat,start_et,stop_et,step,method='tle')
+    
+    return
+
 
 def test_get_ephem_TOPO():
     ''' 
@@ -332,9 +367,13 @@ def test_compare_ephemerides():
     return df
 
 
-#%% Eclipses and Station Lighting
+#%% Events. Eclipses and Station Lighting
 
 def test_station_lighting():
+    
+    # Select station
+    # gs = 'DSS-43'
+    gs = 'SSR-1'
     
     # Generate ephemeris times
     step = 10.
@@ -342,7 +381,8 @@ def test_station_lighting():
     et = generate_et_vectors_from_GMAT_coverage(step, exclude_ends=False)
     start_et = et[0]
     stop_et = et[-1]
-    light, dark = find_station_lighting(start_et,stop_et,station='DSS-43')
+    # light, dark = find_station_lighting(start_et,stop_et,station=gs,ref_el=-0.25)
+    light, dark = find_station_lighting(start_et,stop_et,station=gs,ref_el=-6.)
     
     result = dark
     
@@ -448,15 +488,58 @@ def test_access():
     start_et = et[0]
     stop_et = et[-1]
     
+    # Select groundstation
+    # gs = 'DSS-43'
+    gs = 'SSR-1'
+    # gs = 'SSR-2'    
+    
     # Compute line-of-sight access intervals
-    access = find_access(start_et,stop_et,station='DSS-43')
+    los_access = find_access(start_et,stop_et,station=gs)
+    dflos = window_to_dataframe(los_access)
+    
+    # Compute station lighting intervals
+    # gslight, gsdark = find_station_lighting(start_et,stop_et,station=gs, ref_el=-0.25)
+    gslight, gsdark = find_station_lighting(start_et,stop_et,station=gs, ref_el=-6.)
+    
+    # Compute satellite lighting intervals
+    satlight, satpartial, satdark = find_sat_lighting(start_et,stop_et)
+    
+    # Compute visible (constrained) access intervals
+    access = constrain_access_by_lighting(los_access,gslight,satdark)
+    dfaccess = window_to_dataframe(access)
+    
+    # Print results
     
     # Line-of-sight access (no constraints)
-    count = spice.wncard( access ) # Count of intervals
+    count = spice.wncard( los_access ) # Count of intervals
     print('Line-of-Sight Access')
     TIMFMT = "YYYY-MON-DD HR:MN:SC.###### ::UTC ::RND" # Time format for printing
     TIMLEN = 41
-    print('Start (UTC)                 Stop (UTC)                  Duration (s)')
+    print('# Start (UTC)                 Stop (UTC)                  Duration (s)')
+    for i in range(count):
+        beg,end = spice.wnfetd (los_access, i)
+        if beg==end:
+            begstr = spice.timout ( beg, TIMFMT, TIMLEN)
+            print("Event time: {} \n".format(begstr))
+        else:
+            begstr = spice.timout ( beg, TIMFMT, TIMLEN)
+            endstr = spice.timout ( end, TIMFMT, TIMLEN)
+            dur = end-beg
+            print( "{} {} {} {}".format(i+1, begstr, endstr, str(dur)) );
+    print('')
+    print('Min Duration {} s'.format(dflos.Duration.min()))
+    print('Max Duration {} s'.format(dflos.Duration.max()))
+    print('Mean Duration {} s'.format(dflos.Duration.mean()))
+    print('Total Duration {} s'.format(dflos.Duration.sum()))
+    print('')
+    print('')
+    
+    # Visible access (no constraints)
+    count = spice.wncard( access ) # Count of intervals
+    print('Visible Access')
+    TIMFMT = "YYYY-MON-DD HR:MN:SC.###### ::UTC ::RND" # Time format for printing
+    TIMLEN = 41
+    print('# Start (UTC)                 Stop (UTC)                  Duration (s)')
     for i in range(count):
         beg,end = spice.wnfetd (access, i)
         if beg==end:
@@ -466,11 +549,13 @@ def test_access():
             begstr = spice.timout ( beg, TIMFMT, TIMLEN)
             endstr = spice.timout ( end, TIMFMT, TIMLEN)
             dur = end-beg
-            print( "{} {} {}".format( begstr, endstr, str(dur)) );
+            print( "{} {} {} {}".format(i+1, begstr, endstr, str(dur)) );
     print('')
-    
-    # Visible access
-    # Constrain access times based on satellite and station lighting conditions
+    print('Min Duration {} s'.format(dfaccess.Duration.min()))
+    print('Max Duration {} s'.format(dfaccess.Duration.max()))
+    print('Mean Duration {} s'.format(dfaccess.Duration.mean()))
+    print('Total Duration {} s'.format(dfaccess.Duration.sum()))
+    print('')
     
     return access
 
@@ -478,6 +563,9 @@ def test_access():
 #%% Plot Overpass
 
 def test_plot_access():
+    
+    gs = 'DSS-43'
+    # gs = 'SSR-30'
     
     # Generate ephemeris times
     step = 10.
@@ -490,10 +578,10 @@ def test_plot_access():
     satlight, satpartial, satdark = find_sat_lighting(start_et,stop_et)
     
     # Compute station lighting intervals
-    gslight, gsdark = find_station_lighting(start_et,stop_et,station='DSS-43')
+    gslight, gsdark = find_station_lighting(start_et,stop_et,station=gs)
     
     # Compute line-of-sight access intervals
-    access = find_access(start_et,stop_et,station='DSS-43')
+    access = find_access(start_et,stop_et,station=gs)
     
     # Plot
     plot_access_times(access,gslight,gsdark,satlight, satpartial, satdark)
@@ -555,6 +643,7 @@ def test_plot_visual_magnitude():
     
     
     return
+
 
 
 
