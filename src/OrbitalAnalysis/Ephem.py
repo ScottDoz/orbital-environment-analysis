@@ -186,7 +186,19 @@ class SPICEKernels:
         print('File {} saved'.format(str(fullfilename)))
 
         return
-
+    
+    
+    
+    # Generic kernel downloads ------------------------------------------------
+    # Generic kernels needed for most SPICE programs
+    #
+    # Filename                        Description
+    # naif0012.tls                    Leap second kernel
+    # pck00010.tpc                    Planetary constants kernel
+    # earth_000101_220616_220323.bpc  Earth binary PCK (Jan 2000 - Jun 2022)
+    # earth_topo_201023.tf            Earth topocentric frame text kernel
+    # geophysical.ker                 Geophysical constants kernel 
+    
     @classmethod
     def download_lsk(self):
         '''
@@ -255,6 +267,110 @@ class SPICEKernels:
         # unix2dos pck00010.tpc pck00010.tpc
         
         return
+    
+    @classmethod
+    def download_earth_binary_pck(self):
+        '''
+        Download Binary Planetary Constants Kernel for Earth files from:
+        https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/
+
+        '''
+        
+        # Check data directory
+        self._check_data_directory()
+        
+        # TODO: This file should be updated depending on timeframe of 
+        url = "https://naif.jpl.nasa.gov/pub/naif/EXOMARS2016/kernels/pck/earth_000101_220616_220323.bpc"
+
+        # Get the request
+        print('Downloading earth_000101_220616_220323.bpc file.')
+        r = requests.get(url, allow_redirects=True)
+
+        # Get the filename
+        filename = url.split('/')[-1]
+        # filename = self._getFilename_fromCd(r.headers.get('content-disposition'))
+
+        # Set directory to save into
+        DATA_DIR = get_data_home() # Data home directory
+        _dir = DATA_DIR  / 'Kernels'
+
+        # Write the results to file
+        fullfilename = _dir / filename
+
+        open(fullfilename, 'wb').write(r.content)
+        print('File {} saved'.format(str(fullfilename)))
+        
+        return
+    
+    @classmethod
+    def download_earth_topo_tf(self):
+        '''
+        Download Text Kernel for Earth Topocentric frame from:
+        https://naif.jpl.nasa.gov/pub/naif/generic_kernels/fk/stations/
+
+        '''
+        
+        # Check data directory
+        self._check_data_directory()
+        
+        # TODO: This file should be updated depending on timeframe of 
+        url = "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/fk/stations/earth_topo_201023.tf"
+
+        # Get the request
+        print('Downloading earth_topo_201023.tf file.')
+        r = requests.get(url, allow_redirects=True)
+
+        # Get the filename
+        filename = url.split('/')[-1]
+        # filename = self._getFilename_fromCd(r.headers.get('content-disposition'))
+
+        # Set directory to save into
+        DATA_DIR = get_data_home() # Data home directory
+        _dir = DATA_DIR  / 'Kernels'
+
+        # Write the results to file
+        fullfilename = _dir / filename
+
+        open(fullfilename, 'wb').write(r.content)
+        print('File {} saved'.format(str(fullfilename)))
+        
+        return
+    
+    @classmethod
+    def download_geophysical(self):
+        '''
+        Download Geophysical kernel from:
+        https://naif.jpl.nasa.gov/pub/naif/generic_kernels/ock/
+
+        '''
+        
+        # Check data directory
+        self._check_data_directory()
+        
+        # TODO: This file should be updated depending on timeframe of 
+        url = "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/geophysical.ker"
+
+        # Get the request
+        print('Downloading geophysical.kerfile.')
+        r = requests.get(url, allow_redirects=True)
+
+        # Get the filename
+        filename = url.split('/')[-1]
+        # filename = self._getFilename_fromCd(r.headers.get('content-disposition'))
+
+        # Set directory to save into
+        DATA_DIR = get_data_home() # Data home directory
+        _dir = DATA_DIR  / 'Kernels'
+
+        # Write the results to file
+        fullfilename = _dir / filename
+
+        open(fullfilename, 'wb').write(r.content)
+        print('File {} saved'.format(str(fullfilename)))
+        
+        return
+    
+    
 
 #%% Ephemeris generation
 

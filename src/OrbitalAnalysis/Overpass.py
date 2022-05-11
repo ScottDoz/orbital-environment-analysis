@@ -8,7 +8,6 @@ Overpass Module
 -------------------
 Functions dealing with the setup of the scenario.
 
-- configuring and running GMAT scripts
 - analyse statistics of the overpasses
 
 Note: the NAIF of the spacecraft in the output ephemeris file is
@@ -57,6 +56,7 @@ from GroundstationData import get_groundstations
 #%% Main Workflow
 
 def run_analysis(sat_dict,start_date,stop_date,step):
+    ''' Main workflow for DIT score calculation. '''
     
     # Convert start and stop dates to Ephemeris Time
     kernel_dir = get_data_home() / 'Kernels'
@@ -64,6 +64,10 @@ def run_analysis(sat_dict,start_date,stop_date,step):
     start_et = spice.str2et(start_date)
     stop_et = spice.str2et(stop_date)
     scenario_duration = stop_et - start_et # Length of scenario (s)
+    
+    # 0. Check all generic kernels exist
+    check_generic_kernels()
+    
     
     # # 1. Create Ephemeris files
     # # - Satellite Ephemeris file (sat.bsp)
@@ -119,6 +123,51 @@ def run_analysis(sat_dict,start_date,stop_date,step):
 
 
 #%% Subroutines
+
+def check_generic_kernels():
+    ''' Check to ensure all generic kernels needed for analysis are present. '''
+    
+    # Get kernel directory
+    kernel_dir = get_data_home() / 'Kernels'
+    
+    # Check Leap second kernel
+    filename = kernel_dir/'naif0012.tls'
+    if filename.exists() == False:
+        print("Missing Leap Second Kernel")
+        SPICEKernels.download_lsk()
+    
+    # Check Planetary Constants Kernel
+    filename = kernel_dir/'pck00010.tpc'
+    if filename.exists() == False:
+        print("Missing Planetary Constants Kernel")
+        SPICEKernels.download_pck()
+    
+    # DE440 Solar System Ephemeris
+    filename = kernel_dir/'de440s.bsp'
+    if filename.exists() == False:
+        print("Missing DE440s Solar System Ephemeris")
+        SPICEKernels.download_planet_spk()
+    
+    # Earth binary PCK (Jan 2000 - Jun 2022)
+    filename = kernel_dir/'earth_000101_220616_220323.bpc'
+    if filename.exists() == False:
+        print("Missing Earth Binary PCK")
+        SPICEKernels.download_earth_binary_pck()
+    
+    # Earth topocentric frame text kernel
+    filename = kernel_dir/'earth_topo_201023.tf'
+    if filename.exists() == False:
+        print("Missing Earth topocentric frame text kernel")
+        SPICEKernels.download_earth_topo_tf()
+    
+    # Geophysical constants kernel
+    filename = kernel_dir/'geophysical.ker'
+    if filename.exists() == False:
+        print("Missing Geophysical constants kernel")
+        SPICEKernels.download_geophysical()
+    
+    return
+
 
 def create_ephem_files(sat,start_date,stop_date,step,method):
     ''' Create ephemeris files for satellite and groundstation networks '''
