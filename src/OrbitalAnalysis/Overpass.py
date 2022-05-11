@@ -65,9 +65,16 @@ def run_analysis(sat_dict,start_date,stop_date,step):
     stop_et = spice.str2et(stop_date)
     scenario_duration = stop_et - start_et # Length of scenario (s)
     
+    # Define a working folder to output the data
+    out_dir = get_data_home()/'DITdata'
+    # Check if directory exists and create
+    if not os.path.exists(str(out_dir)):
+        os.makedirs(str(out_dir))
+
+    
+    
     # 0. Check all generic kernels exist
     check_generic_kernels()
-    
     
     # # 1. Create Ephemeris files
     # # - Satellite Ephemeris file (sat.bsp)
@@ -81,9 +88,8 @@ def run_analysis(sat_dict,start_date,stop_date,step):
     satlight, satpartial, satdark = find_sat_lighting(start_et,stop_et)
     
     # 3. Compute SSR and SSRD Station Lighting and access
-    dflos_ssr, dfvis_ssr = compute_station_access('SSR',start_et,stop_et,satdark)
-    dflos_ssrd, dfvis_ssrd = compute_station_access('SSRD',start_et,stop_et,satdark)
-    
+    dflos_ssr, dfvis_ssr = compute_station_access('SSR',start_et,stop_et,satdark,save=True)
+    dflos_ssrd, dfvis_ssrd = compute_station_access('SSRD',start_et,stop_et,satdark,save=True)
     
     # 4. Optical Trackability
     # Compute from combined list of visible access dfvis_ssr
@@ -207,7 +213,7 @@ def create_ephem_files(sat,start_date,stop_date,step,method):
     
     return
 
-def compute_station_access(network,start_et,stop_et,satdark):
+def compute_station_access(network,start_et,stop_et,satdark,save=False):
     
     # Loop through all stations and 
     
@@ -220,6 +226,10 @@ def compute_station_access(network,start_et,stop_et,satdark):
         # SSRD Network contains 7 stations
         stations = ['SSRD-'+str(i+1) for i in range(7)]
         
+    # Define a working folder to output the data
+    out_dir = get_data_home()/'DITdata'
+    
+    
     
     # Loop through stations
     # TODO: in paralellize this function
@@ -253,10 +263,48 @@ def compute_station_access(network,start_et,stop_et,satdark):
         # Compute non-access intervals (complement of access periods)
         gap = spice.wncomd(start_et,stop_et,access)
     
-    
-    
-    
-    
+        # Save data to file
+        if save==True:
+            
+            # Line-of-sight access 
+            
+            # Copy start and stop et to new columns
+            dflos_i.insert(2,'Start_et',dflos_i.Start)
+            dflos_i.insert(3,'Stop_et',dflos_i.Stop)
+            # Convert Start times to calendar
+            dt = spice.et2datetime(dflos_i.Start) # Datetime
+            t = Time(dt, format='datetime', scale='utc') # Astropy Time object
+            t_iso = t.iso # Times in iso
+            dflos_i['Start'] = pd.to_datetime(t_iso)
+            # Convert Stop times to calendar
+            dt = spice.et2datetime(dflos_i.Stop) # Datetime
+            t = Time(dt, format='datetime', scale='utc') # Astropy Time object
+            t_iso = t.iso # Times in iso
+            dflos_i['Stop'] = pd.to_datetime(t_iso)
+            # Save access data to file
+            filename = gs + "_los_access_intervals.csv"
+            dflos_i.to_csv(str(out_dir/filename),index=False)
+            
+            
+            # Visible access 
+            
+            # Copy start and stop et to new columns
+            dfvis_i.insert(2,'Start_et',dfvis_i.Start)
+            dfvis_i.insert(3,'Stop_et',dfvis_i.Stop)
+            # Convert Start times to calendar
+            dt = spice.et2datetime(dfvis_i.Start) # Datetime
+            t = Time(dt, format='datetime', scale='utc') # Astropy Time object
+            t_iso = t.iso # Times in iso
+            dfvis_i['Start'] = pd.to_datetime(t_iso)
+            # Convert Stop times to calendar
+            dt = spice.et2datetime(dfvis_i.Stop) # Datetime
+            t = Time(dt, format='datetime', scale='utc') # Astropy Time object
+            t_iso = t.iso # Times in iso
+            dfvis_i['Stop'] = pd.to_datetime(t_iso)
+            # Save access data to file
+            filename = gs + "_vis_access_intervals.csv"
+            dfvis_i.to_csv(str(out_dir/filename),index=False)
+        
     
     return dflos, dfvis
 
