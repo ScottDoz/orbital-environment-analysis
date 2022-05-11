@@ -164,7 +164,7 @@ def find_sat_lighting(start_et,stop_et):
     
     return light, partial, dark
 
-def find_station_lighting(start_et,stop_et,station='DSS-43',ref_el = -6.):
+def find_station_lighting(start_et,stop_et,station='DSS-43',method='ref_el', ref_el = -6.):
     '''
     Find time intervals when a ground station is in sunlight and darkness.
     Darkness is defined here using nautical twilight, when the local sun 
@@ -222,12 +222,17 @@ def find_station_lighting(start_et,stop_et,station='DSS-43',ref_el = -6.):
     spice.furnsh( str(kernel_dir/'pck00010.tpc') ) # Planetary constants kernel
     # Ephemerides
     spice.furnsh( str(kernel_dir/'de440s.bsp') )   # Solar System ephemeris
-    spice.furnsh( str(kernel_dir/'earthstns_itrf93_201023.bsp') ) # DSN station Ephemerides
-    spice.furnsh( str(kernel_dir/'SSR_stations.bsp') ) # SSR station Ephemerides
     # Frame kernels
     spice.furnsh( str(kernel_dir/'earth_000101_220616_220323.bpc') ) # Earth binary PCK (Jan 2000 - Jun 2022)
-    spice.furnsh( str(kernel_dir/'earth_topo_201023.tf') ) # Earth topocentric frame text kernel
+    # DSN Stations
+    spice.furnsh( str(kernel_dir/'earthstns_itrf93_201023.bsp') ) # DSN station Ephemerides
+    # SSR Stations
+    spice.furnsh( str(kernel_dir/'SSR_stations.bsp') ) # SSR station Ephemerides
     spice.furnsh( str(kernel_dir/'SSR_stations.tf') )      # SSR topocentric frame text kernel
+    # SSRD Stations
+    spice.furnsh( str(kernel_dir/'SSRD_stations.bsp') ) # SSRD station Ephemerides
+    spice.furnsh( str(kernel_dir/'SSRD_stations.tf') )  # SSRD topocentric frame text kernel
+    
     
     # Get details of station kernel file
     ids = spice.spkobj(str(kernel_dir/'earthstns_itrf93_201023.bsp'))
@@ -245,24 +250,58 @@ def find_station_lighting(start_et,stop_et,station='DSS-43',ref_el = -6.):
     cnfine = spice.cell_double(2) # Initialize window of interest
     spice.wninsd(start_et, stop_et, cnfine ) # Insert time interval in window
     
-    # Settings for geometry search  
-    # Find when the solar elevation is < -6 deg
-    targ = "SUN" # Target
-    frame  = station+"_TOPO" # Reference frame
-    abcorr = "NONE" # Aberration correction flag
-    obsrvr = station # Observer
-    crdsys = "LATITUDINAL" # Coordinate system
-    coord  = "LATITUDE" # Coordinate of interest
-    refval = ref_el*spice.rpd() # Reference value
-    relate = "<"             # Relational operator 
-    adjust = 0. # Adjustment value for absolute extrema searches
-    step = (1./24.)*spice.spd() # Step size (1 hrs)
+    if method == 'ref_el':
+        # Find dark times based on reference elevaition
     
-    # Call the function to find eclipse times (station dark)
-    dark = spice.cell_double(2*MAXWIN) # Initialize result
-    dark = spice.gfposc(targ,frame,abcorr,obsrvr,crdsys,coord,relate,
-                     refval,adjust,step,MAXWIN,cnfine,dark)
+        # Settings for geometry search  
+        # Find when the solar elevation is < -6 deg
+        targ = "SUN" # Target
+        frame  = station+"_TOPO" # Reference frame
+        abcorr = "NONE" # Aberration correction flag
+        obsrvr = station # Observer
+        crdsys = "LATITUDINAL" # Coordinate system
+        coord  = "LATITUDE" # Coordinate of interest
+        refval = ref_el*spice.rpd() # Reference value
+        relate = "<"             # Relational operator 
+        adjust = 0. # Adjustment value for absolute extrema searches
+        step = (1./24.)*spice.spd() # Step size (1 hrs)
+        
+        # Call the function to find eclipse times (station dark)
+        dark = spice.cell_double(2*MAXWIN) # Initialize result
+        dark = spice.gfposc(targ,frame,abcorr,obsrvr,crdsys,coord,relate,
+                         refval,adjust,step,MAXWIN,cnfine,dark)
     
+    elif method == 'eclipse':
+        # Find dark times based on occultation/eclipse of Sun by Earth.
+        
+        # Find ocultations of the Sun by Earth as seen from the Groundstation
+        # Target: Sun
+        # Observer: GS
+        # Occulting body: Earth
+        
+        # Occultation geometry search settings
+        occtyp = "ANY"  # Type of occultation (Full,Annular,Partial,Any)
+        front = "EARTH" # Name of occulting body
+        fshape = "ELLIPSOID" # Type of shape model for front body (POINT, ELLIPSOID, DSK/UNPRIORITIZED)
+        fframe = "ITRF93" #"IAU_EARTH" # # Body-fixed frame of front body
+        back =  "SUN" # Name of occulted body
+        bshape = "ELLIPSOID" # Type of shape model for back body
+        bframe = "IAU_SUN" # Body-fixed frame of back body (empty)
+        # abcorr = "NONE" # Aberration correction flag
+        abcorr = "lt"
+        obsrvr = station  # Observer
+        step = 10. # Step size (s)
+        
+        # Find occulations
+        
+        # Full occulation (dark or umbra)
+        dark = spice.cell_double(2*MAXWIN) # Initialize result
+        dark = spice.gfoclt ( "FULL",
+                              front,   fshape,  fframe,
+                              back,    bshape,  bframe,
+                              abcorr,  obsrvr,  step,
+                              cnfine, dark          )
+        
     
     # Find lit times
     # This is the complement of the dark time intervals, constrained by the 
@@ -324,14 +363,20 @@ def find_access(start_et,stop_et,station='DSS-43'):
     spice.furnsh( str(kernel_dir/'pck00010.tpc') ) # Planetary constants kernel
     # Ephemerides
     spice.furnsh( str(kernel_dir/'de440s.bsp') )   # Solar System ephemeris
-    spice.furnsh( str(kernel_dir/'earthstns_itrf93_201023.bsp') ) # DSN station Ephemerides 
-    spice.furnsh( str(kernel_dir/'SSR_stations.bsp') ) # SSR station Ephemerides
     spice.furnsh( sat_ephem_file ) # Satellite
     # Frame kernels
     spice.furnsh( str(kernel_dir/'earth_000101_220616_220323.bpc') ) # Earth binary PCK (Jan 2000 - Jun 2022)
+    # DSN Stations
+    spice.furnsh( str(kernel_dir/'earthstns_itrf93_201023.bsp') ) # DSN station Ephemerides 
     spice.furnsh( str(kernel_dir/'earth_topo_201023.tf') ) # Earth topocentric frame text kernel
+    # SSR Stations
+    spice.furnsh( str(kernel_dir/'SSR_stations.bsp') ) # SSR station Ephemerides
     spice.furnsh( str(kernel_dir/'SSR_stations.tf') )      # SSR topocentric frame text kernel
-    
+    # SSRD Stations
+    spice.furnsh( str(kernel_dir/'SSRD_stations.bsp') ) # SSRD station Ephemerides
+    spice.furnsh( str(kernel_dir/'SSRD_stations.tf') )  # SSRD topocentric frame text kernel
+
+
     # Get the NAIF IDs of spacecraft from satellite ephemeris file
     ids = spice.spkobj(sat_ephem_file) # SpiceCell object
     numobj = len(ids)

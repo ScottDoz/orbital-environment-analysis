@@ -540,7 +540,7 @@ def create_station_ephem(df, network_name='SSR'):
      
     # \begintext
     
-    # Output file
+    # Definitions file
     kernel_dir = get_data_home()  / 'Kernels'
     defs_filename = kernel_dir/str(network_name+'_stations.defs')
     
@@ -590,6 +590,17 @@ def create_station_ephem(df, network_name='SSR'):
     # Format the template file and write
     with  open(defs_filename,'w') as myfile:
         myfile.write(template.format(**{ "sites":sites_txt,"details":details_txt} ))
+    
+    
+    # Output files
+    outfile_bsp = kernel_dir/'{}_stations.bsp'.format(network_name) # Ephemeris file
+    outfile_tf = kernel_dir/'{}_stations.tf'.format(network_name)  # Reference frame file
+
+    # Check if files exist
+    if outfile_bsp.exists():
+        outfile_bsp.unlink()
+    if outfile_tf.exists():
+        outfile_tf.unlink()
     
     # Run the PINPOINT function
     cmd = 'pinpoint -def {file} -pck pck00010.tpc -spk {nn}_stations.bsp -fk  {nn}_stations.tf'.format(**{'file':defs_filename.name,'nn':network_name}) # Command
@@ -646,7 +657,12 @@ def get_ephem_ITFR(et,groundstations=['DSS-43']):
     spice.furnsh( str(kernel_dir/'earth_topo_201023.tf') ) # Earth topocentric frame text kernel
     # SSR Stations
     spice.furnsh( str(kernel_dir/'SSR_stations.bsp') ) # SSR station Ephemerides
-    spice.furnsh( str(kernel_dir/'SSR_stations.tf') )      # SSR topocentric frame text kernel
+    spice.furnsh( str(kernel_dir/'SSR_stations.tf') )  # SSR topocentric frame text kernel
+    # SSRD Stations
+    spice.furnsh( str(kernel_dir/'SSRD_stations.bsp') ) # SSRD station Ephemerides
+    spice.furnsh( str(kernel_dir/'SSRD_stations.tf') )  # SSRD topocentric frame text kernel
+    
+    
     
     # Get the NAIF IDs of spacecraft from satellite ephemeris file
     ids = spice.spkobj(sat_ephem_file) # SpiceCell object
@@ -756,6 +772,9 @@ def get_ephem_TOPO(et,groundstations=['DSS-43']):
     # SSR stations
     spice.furnsh( str(kernel_dir/'SSR_stations.bsp') ) # SSR station Ephemerides
     spice.furnsh( str(kernel_dir/'SSR_stations.tf') )      # SSR topocentric frame text kernel
+    # SSRD Stations
+    spice.furnsh( str(kernel_dir/'SSRD_stations.bsp') ) # SSRD station Ephemerides
+    spice.furnsh( str(kernel_dir/'SSRD_stations.tf') )  # SSRD topocentric frame text kernel
     
     # Get the NAIF IDs of spacecraft from satellite ephemeris file
     ids = spice.spkobj(sat_ephem_file) # SpiceCell object
@@ -944,6 +963,8 @@ def compute_visual_magnitude(dftopo,Rsat,p=0.25,k=0.12,include_airmass=True):
     
     # Remove magnitude when below horizon
     msat[el<np.deg2rad(0.1)] = np.nan
+    
+    # TODO: Constrain by max value
     
     return msat
 

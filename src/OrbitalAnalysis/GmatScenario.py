@@ -446,3 +446,38 @@ def get_GMAT_coverage(DATA_DIR=None):
            'stop_date':stop_date, 'stop_et':stop_et, 'stop_jd':stop_jd}
     
     return cov
+
+#%% Scenario coverage and time vectors
+
+def generate_et_vectors_from_GMAT_coverage(step, exclude_ends=False):
+    '''
+    Generate a vector of epochs (ET) with start and stop dates from the GMAT
+    scenario
+
+    Parameters
+    ----------
+    step : float
+        Step size in seconds
+    
+    exclude_ends : Bool
+        Flag to exclude the srart and stop times.
+        Sometimes problems with interpolating ephemeris at ends.
+
+    Returns
+    -------
+    et : 1xN numpy array.
+        Vector of ephemeris times
+
+    '''
+    
+    # Read the GMAT script to get coverage
+    cov = get_GMAT_coverage()
+    
+    # Create time vector
+    et = np.arange(cov['start_et'],cov['stop_et'],step)
+    
+    # Clip ends
+    if exclude_ends == True:
+        et = et[1:-1]
+    
+    return et
