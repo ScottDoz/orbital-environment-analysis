@@ -471,9 +471,13 @@ def plot_kde(df,xlabel,ylabel):
     
     return
 
-#%% Plot Timeframes
+#%% Main DIT Analysis Figures
 
-def plot_time_windows(wins,groups,Types,colors):
+def plot_time_windows(wins,groups,Types,
+                      colors=None,filename=None,group_label='group',title="Time Windows"):
+    '''
+    Plot a Gantt chart displaying a set of time windows.
+    '''
     
     df_list = []
     for i in range(len(wins)):
@@ -481,16 +485,23 @@ def plot_time_windows(wins,groups,Types,colors):
         # Convert window to dataframe
         win = wins[i] # Extract window
         dfi = window_to_dataframe(win,timefmt='datetime') # Access times (datetime)
-        dfi['group'] = groups[i] # y-labels
+        dfi[group_label] = groups[i] # y-labels
         dfi['Type'] = Types[i] # Types
         df_list.append(dfi) # Append to list
     
     # Concat all dataframes
     df = pd.concat(df_list)
     
+    # Generate colors
+    if colors is None:
+        # colors = px.colors.qualitative.Plotly[:len(groups)]
+        colors = px.colors.qualitative.Plotly
+        
+    
     # Create gant chart
-    fig = px.timeline(df, x_start="Start", x_end="Stop", y="group", color="Type",
+    fig = px.timeline(df, x_start="Start", x_end="Stop", y=group_label, color="Type",
                       color_discrete_sequence=colors,
+                      title=title,
                       )
     
     # Update bar height
@@ -511,11 +522,113 @@ def plot_time_windows(wins,groups,Types,colors):
         )
     )
     
+    # # Add title to figure
+    # fig.update_layout(
+    #     title = {'text':title}
+    # )
+    
     # Render
-    plotly.offline.plot(fig, validate=False)
+    if filename is None:
+        filenmae = 'temp-plot.html'
+    plotly.offline.plot(fig, filename = str(filename), validate=False)
 
     
     return
+
+def plot_visibility(dftopo):
+    ''' Plot the visibility data for a single ground station '''
+    
+    from plotly.subplots import make_subplots
+    import plotly.graph_objects as go
+    
+    
+    # Constraints
+    cutoff_mag = 15. # Maximum magnitude for visibility
+    # Compute contrained stats
+    msat = dftopo.Vmag.to_numpy()
+    max_mag = np.nanmax(msat[msat<=cutoff_mag])  # Maximum (dimest) magnitude
+    min_mag = np.nanmin(msat[msat<=cutoff_mag])  # Minimum (brightest) magnitude 
+    avg_mag = np.nanmean(msat[msat<=cutoff_mag]) # Mean magnitude
+    
+    start_et = dftopo.ET.min()
+    stop_et = dftopo.ET.max()
+    
+    # Copy original dataframe
+    dftopo1 = dftopo.copy()
+    
+    # Insert blank line between time gaps
+    et = dftopo.ET.to_numpy() # Extract ephemeris time
+    ind = np.where(np.diff(et)>100.)[0]
+    df_new = pd.DataFrame(index=ind + 0.5) # New dataframe at half integer indices
+    dftopo = pd.concat([dftopo, df_new]).sort_index()
+    
+    
+    # Generate a subplot
+    fig = make_subplots(rows=3, cols=1, shared_xaxes=True)
+    
+    # First trace. Solar and Sat Elevation.
+    fig.add_trace(
+        go.Scatter(x=dftopo.ET, y= np.rad2deg(dftopo['Sun.El']),
+                   mode='lines',name='Sun.El',legendgroup = '1' ),
+        row=1, col=1
+    )
+    fig.add_trace(
+        go.Scatter(x=dftopo.ET, y= np.rad2deg(dftopo['Sat.El']),
+                   mode='lines',name='Sat.El',legendgroup = '1' ),
+        row=1, col=1
+    )
+    
+    # Second trace. Sat Range.
+    fig.add_trace(
+        go.Scatter(x=dftopo.ET, y=dftopo['Sat.R'],
+                   mode='lines',name='Sat.Range',legendgroup = '2' ),
+        row=2, col=1
+    )
+    
+    # Third trace. Visual Magnitude.
+    fig.add_trace(
+        go.Scatter(x=dftopo.ET, y=dftopo['Vmag'],
+                   mode='lines',name='Vmag',legendgroup = '3' ),
+        row=3, col=1
+    )
+    fig.add_trace(
+        go.Scatter(x=dftopo.ET, y=dftopo['Vmag2'],
+                   mode='lines',name='Vmag2',legendgroup = '3' ),
+        row=3, col=1
+    )
+    
+    # Add shape regions
+    fig.add_hrect(
+        y0=min_mag, y1=max_mag,
+        fillcolor="LightSalmon", opacity=0.3,
+        layer="below", line_width=0,
+        row=3, col=1
+    ),
+    
+    
+    
+    
+    
+    # Update yaxis properties
+    fig.update_xaxes(title_text="Epoch (ET)", row=3, col=1)
+    # Update yaxis properties
+    fig.update_yaxes(title_text="Elevation (deg)", row=1, col=1)
+    fig.update_yaxes(title_text="Range (km)", row=2, col=1)
+    fig.update_yaxes(title_text="Visual Magnitude (mag)", row=3, col=1)
+    # Reverse Vmag axes
+    fig.update_yaxes(autorange="reversed", row=3, col=1)
+    # Add gap in legend groups
+    fig.update_layout(legend_tracegroupgap = 300)
+    
+    
+    plotly.offline.plot(fig, validate=False)
+    
+    # Reset topo
+    dftopo = dftopo1
+    
+    return
+
+
 
 #%% Overpass plots
 
@@ -651,7 +764,7 @@ def plot_overpass(dftopo, dfa):
     dftopo1['Sat.El'] = np.rad2deg(dftopo1['Sat.El'])
     dftopo1['Sat.Az'] = np.rad2deg(dftopo1['Sat.Az'])
     
-    
+    pdb.set_trace()
     # Plotly express (color by access)
     fig = px.line_polar(dftopo1, r="Sat.El", theta="Sat.Az",
                         color="Access",

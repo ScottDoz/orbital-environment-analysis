@@ -33,7 +33,7 @@ from SatelliteData import query_norad
 from utils import get_data_home
 from Ephem import *
 from Events import *
-from Visualization import plot_time_windows
+from Visualization import plot_time_windows, plot_visibility, plot_overpass
 from GroundstationData import get_groundstations
 # from GmatScenario import *
 
@@ -76,12 +76,12 @@ def run_analysis(sat_dict,start_date,stop_date,step):
     # 0. Check all generic kernels exist
     check_generic_kernels()
     
-    # # 1. Create Ephemeris files
-    # # - Satellite Ephemeris file (sat.bsp)
-    # # - SSR stations
-    # # - SSRD stations
-    # create_ephem_files(sat_dict,start_date,stop_date,step,method='two-body') # From elements
-    # # create_ephem_files(NORAD,start_date,stop_date,step,method='tle') # From TLE
+    # 1. Create Ephemeris files
+    # - Satellite Ephemeris file (sat.bsp)
+    # - SSR stations
+    # - SSRD stations
+    create_ephem_files(sat_dict,start_date,stop_date,step,method='two-body') # From elements
+    # create_ephem_files(NORAD,start_date,stop_date,step,method='tle') # From TLE
     
     # 2. Compute satellite lighting intervals
     print('\nComputing Satellite Lighting intervals', flush=True)
@@ -104,13 +104,16 @@ def run_analysis(sat_dict,start_date,stop_date,step):
     radar_score = radar_results['Score'].mean() # Total radar score
 
     # 6. Optical Detectability
-    compute_optical_detectability(dfvis_ssr)
+    optical_detectability_results = compute_optical_detectability(dfvis_ssr)
+    opt_detect_score = optical_detectability_results['Score'].iloc[0]
 
     # Save results to dict ---------------------------------
     results = {'SSRD_los':dflos_ssrd, 'SSRD_vis':dfvis_ssrd,
                'SSR_los':dflos_ssr, 'SSR_vis':dfvis_ssr,
-               'radar_results':radar_results,'optical_results':optical_results,
-               'radar_score':radar_score,'optical_score':optical_score}
+               'radar_track_results':radar_results,'optical_track_results':optical_results,
+               'radar_track_score':radar_score,'optical_track_score':optical_score,
+               'optical_detect_results':optical_detectability_results,
+               'optical_detect_score': opt_detect_score}
     
     
     # Print Trackability Results
@@ -122,6 +125,10 @@ def run_analysis(sat_dict,start_date,stop_date,step):
     print(optical_results)
     print("\nOverall T Optical Score: {}\n".format(optical_score))
     
+    # Print Detectability Results
+    print('\nOptical Detectability')
+    print(optical_detectability_results)
+    print("\nOverall T Optical Detectability Score: {}\n".format(opt_detect_score))
     
     
     return results
@@ -222,6 +229,7 @@ def compute_station_access(network,start_et,stop_et,satdark,save=False):
         # SSR Network contains 49 stations
         stations = ['SSR-'+str(i+1) for i in range(49)]
         stations = stations[:4] # FIXME: Shortened for testing.
+        
     elif network == 'SSRD':
         # SSRD Network contains 7 stations
         stations = ['SSRD-'+str(i+1) for i in range(7)]
@@ -238,6 +246,7 @@ def compute_station_access(network,start_et,stop_et,satdark,save=False):
     print('Stations: {}'.format(stations),flush=True)
     dflos = pd.DataFrame(columns=['Station','ID','Start','Stop','Duration'])
     dfvis = pd.DataFrame(columns=['Station','ID','Start','Stop','Duration'])
+    access_list = [] # List of visible access interval of stations
     for gs in tqdm(stations):
         
         # Compute station lighting intervals
@@ -254,6 +263,7 @@ def compute_station_access(network,start_et,stop_et,satdark,save=False):
         
         # Compute visible (constrained) access intervals
         access = constrain_access_by_lighting(los_access,gslight,satdark)
+        access_list.append(access) # Append to list of station access intervals
         # Convert to dataframe
         dfvis_i = window_to_dataframe(access,timefmt='ET') # Load as dataframe
         dfvis_i.insert(0,'ID',dfvis_i.index)
@@ -304,9 +314,82 @@ def compute_station_access(network,start_et,stop_et,satdark,save=False):
             # Save access data to file
             filename = gs + "_vis_access_intervals.csv"
             dfvis_i.to_csv(str(out_dir/filename),index=False)
-        
+    
+    # Plot the access periods
+    filename = network + "_access_intervals.html"
+    title = network + " Network Visible Access Intervals"
+    plot_time_windows(access_list,stations,stations,#['blue']*len(stations), 
+                      filename=str(out_dir/filename), 
+                      group_label='Station',
+                      title=title)
     
     return dflos, dfvis
+
+def compute_tracking_stats(df,scenario_duration):
+    ''' 
+    Compute the tracking statistics of access periods - either line-of-sight
+    or visible. Return a dataframe sumarizing average pass duration, average
+    coverage, and average interval, along with tiered scores for each.
+    '''
+    
+    # Compute stats
+    num_access = len(df) # Total number of access intervals
+    total_access = df.Duration.sum() # Total duration of access (s)
+    shortest_access = df.Duration.min() # Shortest access duration (s)
+    longest_access = df.Duration.max() # Longest access duration (s)
+    avg_pass = total_access / num_access # Average duration of access intervals (s)
+    avg_coverage = total_access / scenario_duration # Fraction of coverage
+    avg_interval = ( scenario_duration - total_access) / num_access # Definition 1
+    
+    # Average pass score
+    if avg_pass < 120:
+        pass_tier = 'Difficult to Track'
+        pass_score = 0
+    elif 120 <= avg_pass < 180:
+        pass_tier = "Trackable"
+        pass_score = 0.25
+    elif 180 <= avg_pass < 400:
+        pass_tier = 'More Trackable'
+        pass_score = 0.5
+    elif 400 <= avg_pass:
+        pass_tier = 'Very Trackable'
+        pass_score = 1.0
+    
+    # Coverage score
+    if avg_coverage < 0.1:
+        cover_tier = 'Difficult to Track'
+        cover_score = 0
+    elif 0.1 <= avg_coverage < .25:
+        cover_tier = 'Trackable'
+        cover_score = 0.25
+    elif .25 <= avg_coverage < .60:
+        cover_tier = 'More Trackable'
+        cover_score = 0.5
+    elif .60 < avg_coverage:
+        cover_tier = 'Very Trackable'
+        cover_score = 1.0
+    
+    # Interval score
+    if avg_interval > 43200:
+        int_tier = 'Difficult to Track'
+        int_score = 0
+    elif 43200 <= avg_interval < 14400:
+        int_tier = 'Trackable'
+        int_score = 0.25
+    elif 14400 >= avg_interval:
+        int_tier = 'More Trackable'
+        int_score = 0.5
+    
+    # Create Results Dataframe
+    results = pd.DataFrame(columns=['Metric','Value','Tier','Score'])
+    pass_row = {'Metric': ' Avg Pass (s)', 'Value': avg_pass, 'Tier': pass_tier, 'Score': pass_score}
+    results = results.append(pass_row, ignore_index=True)
+    cover_row = {'Metric': ' Avg Coverage', 'Value': avg_coverage, 'Tier': cover_tier, 'Score': cover_score}
+    results = results.append(cover_row, ignore_index=True)
+    int_row = {'Metric': ' Avg Interval (s)', 'Value': avg_interval, 'Tier': int_tier, 'Score': int_score}
+    results = results.append(int_row, ignore_index=True)
+    
+    return results
 
 def compute_optical_detectability(dfvis_ssr):
     
@@ -329,11 +412,17 @@ def compute_optical_detectability(dfvis_ssr):
     # Get Topocentric ephemeris relative to this station at these times
     dftopo = get_ephem_TOPO(et,groundstations=[best_station])
     dftopo = dftopo[0] # Select first station
+    # Get visible access for this station
+    dfa = dfvis_ssr[dfvis_ssr.Station == best_station]
+    dfa = dfa.rename(columns={"ID":"Access"})
     
     # Compute visual magnitude
     Rsat = 1 # Radius of satellite (m)
     msat = compute_visual_magnitude(dftopo,Rsat,p=0.25,k=0.12) # With airmass
     msat2 = compute_visual_magnitude(dftopo,Rsat,p=0.25,k=0.12,include_airmass=False) # Without airmass
+    # Add to dataframe
+    dftopo.insert(len(dftopo.columns),'Vmag',list(msat))
+    dftopo.insert(len(dftopo.columns),'Vmag2',list(msat2))
     
     # Constraints
     cutoff_mag = 15. # Maximum magnitude for visibility
@@ -342,6 +431,19 @@ def compute_optical_detectability(dfvis_ssr):
     max_mag = np.nanmax(msat[msat<=cutoff_mag])  # Maximum (dimest) magnitude
     min_mag = np.nanmin(msat[msat<=cutoff_mag])  # Minimum (brightest) magnitude 
     avg_mag = np.nanmean(msat[msat<=cutoff_mag]) # Mean magnitude
+    
+    # Optical detectability Scoring Criteria
+    # See Table 7 of R Steindl thesis.
+    if avg_mag > 15:
+        opt_detectability_tier = 'Difficult to Track'
+        opt_detectability_score = 0.5
+    elif avg_mag <= 15.:
+        opt_detectability_tier = "Detectable"
+        opt_detectability_score = 1.0
+    
+    results = pd.DataFrame(columns=['Metric','Value','Tier','Score'])
+    opt_detect_row = {'Metric': 'Avg Vmag', 'Value': avg_mag, 'Tier': opt_detectability_tier, 'Score': opt_detectability_score}
+    results = results.append(opt_detect_row, ignore_index=True)
     
     
     # Generate plots
@@ -367,13 +469,18 @@ def compute_optical_detectability(dfvis_ssr):
     ax2.set_ylabel("Visual Magnitude (mag)")
     fig.show()
     
+    # Plot
+    plot_visibility(dftopo) # Plot of the satellite el,range,visible magnitude
+    # plot_overpass(dftopo, dfa) # Sky plot of overpasses.
     
-    return
+    return results
 
 #%% Optical Analysis Workflow
 
 def trackability_analysis(start_date,stop_date,step, DATA_DIR=None):
     ''' 
+    Depreciated!
+    
     Main function to compute all lighting and access intervals for the defined
     scenario. Also compute metrics for the optical and radar trackability of the 
     satellite.
@@ -520,7 +627,6 @@ def trackability_analysis(start_date,stop_date,step, DATA_DIR=None):
     
     # Print radar results
     
-    
     # Print Trackability Results
     print('\nRadar Trackability')
     print(radar_results)
@@ -533,71 +639,7 @@ def trackability_analysis(start_date,stop_date,step, DATA_DIR=None):
     
     return optical_results, radar_results, station_results
 
-def compute_tracking_stats(df,scenario_duration):
-    ''' 
-    Compute the tracking statistics of access periods - either line-of-sight
-    or visible. Return a dataframe sumarizing average pass duration, average
-    coverage, and average interval, along with tiered scores for each.
-    '''
-    
-    # Compute stats
-    num_access = len(df) # Total number of access intervals
-    total_access = df.Duration.sum() # Total duration of access (s)
-    shortest_access = df.Duration.min() # Shortest access duration (s)
-    longest_access = df.Duration.max() # Longest access duration (s)
-    avg_pass = total_access / num_access # Average duration of access intervals (s)
-    avg_coverage = total_access / scenario_duration # Fraction of coverage
-    avg_interval = ( scenario_duration - total_access) / num_access # Definition 1
-    
-    # Average pass score
-    if avg_pass < 120:
-        pass_tier = 'Difficult to Track'
-        pass_score = 0
-    elif 120 <= avg_pass < 180:
-        pass_tier = "Trackable"
-        pass_score = 0.25
-    elif 180 <= avg_pass < 400:
-        pass_tier = 'More Trackable'
-        pass_score = 0.5
-    elif 400 <= avg_pass:
-        pass_tier = 'Very Trackable'
-        pass_score = 1.0
-    
-    # Coverage score
-    if avg_coverage < 0.1:
-        cover_tier = 'Difficult to Track'
-        cover_score = 0
-    elif 0.1 <= avg_coverage < .25:
-        cover_tier = 'Trackable'
-        cover_score = 0.25
-    elif .25 <= avg_coverage < .60:
-        cover_tier = 'More Trackable'
-        cover_score = 0.5
-    elif .60 < avg_coverage:
-        cover_tier = 'Very Trackable'
-        cover_score = 1.0
-    
-    # Interval score
-    if avg_interval > 43200:
-        int_tier = 'Difficult to Track'
-        int_score = 0
-    elif 43200 <= avg_interval < 14400:
-        int_tier = 'Trackable'
-        int_score = 0.25
-    elif 14400 >= avg_interval:
-        int_tier = 'More Trackable'
-        int_score = 0.5
-    
-    # Create Results Dataframe
-    results = pd.DataFrame(columns=['Metric','Value','Tier','Score'])
-    pass_row = {'Metric': ' Avg Pass (s)', 'Value': avg_pass, 'Tier': pass_tier, 'Score': pass_score}
-    results = results.append(pass_row, ignore_index=True)
-    cover_row = {'Metric': ' Avg Coverage', 'Value': avg_coverage, 'Tier': cover_tier, 'Score': cover_score}
-    results = results.append(cover_row, ignore_index=True)
-    int_row = {'Metric': ' Avg Interval (s)', 'Value': avg_interval, 'Tier': int_tier, 'Score': int_score}
-    results = results.append(int_row, ignore_index=True)
-    
-    return results
+
 
 
 #%% Notes on access

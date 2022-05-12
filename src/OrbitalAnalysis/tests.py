@@ -26,6 +26,7 @@ from Events import *
 # Main module
 
 def test_run_analysis():
+    ''' Test of main DIT analysis workflow '''
     
     # INPUTS
     # NORAD = 25544 # NORAD ID of satellite e.g. 25544 for ISS
@@ -45,6 +46,8 @@ def test_run_analysis():
 
 def test_analysis():
     '''
+    Depreciated!
+    
     Run an analysis. 
     Generating SPK files for a user-defined satellite.
     Run optical analysis to compute optical metrics for average duration, interval.
