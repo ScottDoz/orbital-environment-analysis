@@ -535,7 +535,7 @@ def plot_time_windows(wins,groups,Types,
     
     return
 
-def plot_visibility(dftopo):
+def plot_visibility(dftopo,filename=None,title=None):
     ''' Plot the visibility data for a single ground station '''
     
     from plotly.subplots import make_subplots
@@ -619,15 +619,114 @@ def plot_visibility(dftopo):
     fig.update_yaxes(autorange="reversed", row=3, col=1)
     # Add gap in legend groups
     fig.update_layout(legend_tracegroupgap = 300)
+    # Update title
+    fig.update_layout(title_text=title)
     
-    
-    plotly.offline.plot(fig, validate=False)
+    # Render
+    if filename is None:
+        filenmae = 'temp-plot.html'
+    plotly.offline.plot(fig, filename = str(filename), validate=False)
     
     # Reset topo
     dftopo = dftopo1
     
     return
 
+def plot_overpass_skyplot(dftopo, dfa, filename=None,title=None):
+    ''' Generate a skyplot of the visible passes for a single station '''
+    
+    # Bin data based on access time intervals
+    # See: https://towardsdatascience.com/how-i-customarily-bin-data-with-pandas-9303c9e4d946
+    
+    dftopo1 = dftopo.copy()
+    
+    if 'Sat.Vmag' not in dftopo1.columns:
+        # Compute visual magnitudes
+        Rsat = 1 # Radius of satellite (m)
+        msat = compute_visual_magnitude(dftopo1,Rsat,p=0.25,k=0.12) # With airmass
+        dftopo1['Sat.Vmag'] = msat
+    
+    # Remove nan
+    dftopo1 = dftopo1[pd.notnull(dftopo1['Sat.Vmag'])]
+    
+    # Create bins of ranges for each access interval
+    ranges = pd.IntervalIndex.from_tuples(list(zip(dfa['Start'], dfa['Stop'])),closed='both')
+    labels = dfa.Access.astype(str).to_list()
+    # Apply cut to label access periods
+    dftopo1['Access'] = pd.cut(dftopo1['ET'], bins=ranges, labels=labels).map(dict(zip(ranges,labels)))
+    
+    # Remove non-access
+    dftopo1 = dftopo1[pd.notnull(dftopo1.Access)]
+    
+    
+    # Add blank rows between groups of objects
+    grouped = dftopo1.groupby('Access')
+    dftopo1 = pd.concat([i.append({'Access': None}, ignore_index=True) for _, i in grouped]).reset_index(drop=True)
+    # Forward fill na in Access 
+    dftopo1.Access = dftopo1.Access.fillna(method="ffill")
+    
+    
+    import plotly.graph_objects as go
+    import plotly.express as px
+    import plotly
+    
+    # Convert angles to degrees
+    dftopo1['Sat.El'] = np.rad2deg(dftopo1['Sat.El'])
+    dftopo1['Sat.Az'] = np.rad2deg(dftopo1['Sat.Az'])
+    
+    # Plotly express (color by access)
+    fig = px.line_polar(dftopo1, r="Sat.El", theta="Sat.Az",
+                        color="Access",
+                        color_discrete_sequence=px.colors.sequential.Plasma_r)
+    
+    # Multicolored lines
+    # See: https://stackoverflow.com/questions/69705455/plotly-one-line-different-colors
+    
+    
+    
+    # Remove gaps
+    fig.update_traces(connectgaps=False)
+    
+    # Reverse polar axis
+    fig.update_layout(
+        polar = dict(
+          radialaxis = dict(range = [90,0]),
+          angularaxis = dict(
+                    tickfont_size=10,
+                    rotation=90, # start position of angular axis
+                    direction="clockwise",
+                    showticklabels = True,
+                    ticktext = ['0','1','2','3','4','5','6','7']
+                  )
+          ),
+        )
+    
+    # # Add button to toggle traces on/off
+    # button2 = dict(method='restyle',
+    #             label='All',
+    #             visible=True,
+    #             args=[{'visible':True}],
+    #             args2 = [{'visible': False}],
+    #             )
+    # # Create menu item    
+    # um = [{'buttons':button2, 'label': 'Show', 'showactive':True,
+    #         # 'x':0.3, 'y':0.99,
+    #         }]
+    
+    # pdb.set_trace()
+    
+    # # add dropdown menus to the figure
+    # fig.update_layout(showlegend=True, updatemenus=um)
+    
+    # Render
+    if filename is None:
+        filenmae = 'temp-plot.html'
+    plotly.offline.plot(fig, filename = str(filename), validate=False)
+    
+    
+    del dftopo1
+    
+    return
 
 
 #%% Overpass plots
@@ -723,98 +822,7 @@ def plot_access_times(access,gslight,gsdark,satlight, satpartial, satdark):
     return
 
 
-def plot_overpass(dftopo, dfa):
-    
-    
-    # Bin data based on access time intervals
-    # See: https://towardsdatascience.com/how-i-customarily-bin-data-with-pandas-9303c9e4d946
-    
-    dftopo1 = dftopo.copy()
-    
-    # Compute visual magnitudes
-    Rsat = 1 # Radius of satellite (m)
-    msat = compute_visual_magnitude(dftopo1,Rsat,p=0.25,k=0.12) # With airmass
-    dftopo1['Sat.Vmag'] = msat
-    
-    # Remove nan
-    dftopo1 = dftopo1[pd.notnull(dftopo1['Sat.Vmag'])]
-    
-    # Create bins of ranges for each access interval
-    ranges = pd.IntervalIndex.from_tuples(list(zip(dfa['Start'], dfa['Stop'])),closed='both')
-    labels = dfa.Access.astype(str).to_list()
-    # Apply cut to label access periods
-    dftopo1['Access'] = pd.cut(dftopo1['UTCG'], bins=ranges, labels=labels).map(dict(zip(ranges,labels)))
-    
-    # Remove non-access
-    dftopo1 = dftopo1[pd.notnull(dftopo1.Access)]
-    
-    
-    # Add blank rows between groups of objects
-    grouped = dftopo1.groupby('Access')
-    dftopo1 = pd.concat([i.append({'Access': None}, ignore_index=True) for _, i in grouped]).reset_index(drop=True)
-    # Forward fill na in Access 
-    dftopo1.Access = dftopo1.Access.fillna(method="ffill")
-    
-    
-    import plotly.graph_objects as go
-    import plotly.express as px
-    import plotly
-    
-    # Convert angles to degrees
-    dftopo1['Sat.El'] = np.rad2deg(dftopo1['Sat.El'])
-    dftopo1['Sat.Az'] = np.rad2deg(dftopo1['Sat.Az'])
-    
-    pdb.set_trace()
-    # Plotly express (color by access)
-    fig = px.line_polar(dftopo1, r="Sat.El", theta="Sat.Az",
-                        color="Access",
-                        color_discrete_sequence=px.colors.sequential.Plasma_r)
-    
-    # Multicolored lines
-    # See: https://stackoverflow.com/questions/69705455/plotly-one-line-different-colors
-    
-    
-    
-    # Remove gaps
-    fig.update_traces(connectgaps=False)
-    
-    # Reverse polar axis
-    fig.update_layout(
-        polar = dict(
-          radialaxis = dict(range = [90,0]),
-          angularaxis = dict(
-                    tickfont_size=10,
-                    rotation=90, # start position of angular axis
-                    direction="clockwise",
-                    showticklabels = True,
-                    ticktext = ['0','1','2','3','4','5','6','7']
-                  )
-          ),
-        )
-    
-    # # Add button to toggle traces on/off
-    # button2 = dict(method='restyle',
-    #             label='All',
-    #             visible=True,
-    #             args=[{'visible':True}],
-    #             args2 = [{'visible': False}],
-    #             )
-    # # Create menu item    
-    # um = [{'buttons':button2, 'label': 'Show', 'showactive':True,
-    #         # 'x':0.3, 'y':0.99,
-    #         }]
-    
-    # pdb.set_trace()
-    
-    # # add dropdown menus to the figure
-    # fig.update_layout(showlegend=True, updatemenus=um)
-    
-    plotly.offline.plot(fig, validate=False)
-    
-    
-    del dftopo1
-    
-    return
+
 
 
 def plot_overpass_magnitudes(dftopo, dfa):

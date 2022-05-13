@@ -33,7 +33,7 @@ from SatelliteData import query_norad
 from utils import get_data_home
 from Ephem import *
 from Events import *
-from Visualization import plot_time_windows, plot_visibility, plot_overpass
+from Visualization import plot_time_windows, plot_visibility, plot_overpass_skyplot
 from GroundstationData import get_groundstations
 # from GmatScenario import *
 
@@ -104,10 +104,11 @@ def run_analysis(sat_dict,start_date,stop_date,step):
     radar_score = radar_results['Score'].mean() # Total radar score
 
     # 6. Optical Detectability
-    optical_detectability_results = compute_optical_detectability(dfvis_ssr)
+    optical_detectability_results, best_station = compute_optical_detectability(dfvis_ssr)
     opt_detect_score = optical_detectability_results['Score'].iloc[0]
 
     # Save results to dict ---------------------------------
+    # Results to return in python
     results = {'SSRD_los':dflos_ssrd, 'SSRD_vis':dfvis_ssrd,
                'SSR_los':dflos_ssr, 'SSR_vis':dfvis_ssr,
                'radar_track_results':radar_results,'optical_track_results':optical_results,
@@ -115,6 +116,18 @@ def run_analysis(sat_dict,start_date,stop_date,step):
                'optical_detect_results':optical_detectability_results,
                'optical_detect_score': opt_detect_score}
     
+    # JSON compatible version for saving
+    results1 = {'sat_dict':sat_dict,
+                'radar_track_results':radar_results.to_dict(),
+                'optical_track_results':optical_results.to_dict(),
+                'optical_detect_results':optical_detectability_results.to_dict(),
+                'radar_track_score':radar_score,
+                'optical_track_score':optical_score,
+                'optical_detect_score': opt_detect_score}
+    
+    
+    print("\n\n Results")
+    print("---------")
     
     # Print Trackability Results
     print('\nRadar Trackability')
@@ -128,7 +141,85 @@ def run_analysis(sat_dict,start_date,stop_date,step):
     # Print Detectability Results
     print('\nOptical Detectability')
     print(optical_detectability_results)
-    print("\nOverall T Optical Detectability Score: {}\n".format(opt_detect_score))
+    print("\nOverall Optical Detectability Score: {}\n".format(opt_detect_score))
+    
+    # Save results to json
+    # Save to file
+    import json
+    with open(out_dir/'Results.json', 'w+') as fp:
+        json.dump(results1, fp, sort_keys=True)
+    
+    # Formated results to txt
+    template = '''
+####################
+DIT Analysis Results
+####################
+
+Scenario
+--------
+Start Date: {start_date} UTGC ({start_et} ET)
+Stop Date:  {stop_date} UTGC ({stop_et} ET)
+Time Step: {step} s
+
+Target Satellite
+----------------
+SMA: {a} km \t  Semi-major axis
+ECC: {e} \t  Eccentricity
+INC: {i} deg \t  Inclination
+RAAN: {raan} deg \t Right Ascension of the Ascending Node
+AOP: {aop} deg \t Argument of Periapsis
+TA: {ta} deg \t True anomaly (at Epoch)
+Epoch: {epoch} {epoch_fmt} \t Epoch
+Propagator: Two-body
+
+Radar Trackability
+------------------
+{radar_results}
+
+Overall Radar Trackability Score: {radar_score}
+
+Optical Trackability
+--------------------
+{optical_results}
+
+Overall Optical Trackability Score: {optical_score}
+
+Optical Detectability
+---------------------
+Best access station: {best_station}
+
+{opt_detect_results}
+
+Overall Optical Detectability Score: {opt_detect_score}
+
+
+'''.format(**{  "start_date":str(start_date),
+                "start_et":str(start_et),
+                "stop_date":str(stop_date),
+                "stop_et":str(stop_et),
+                "step":str(step),
+                "a":str(sat_dict['SMA']),
+                "e":str(sat_dict['ECC']),
+                "i":str(sat_dict['INC']),
+                "raan":str(sat_dict['RAAN']),
+                "aop":str(sat_dict['AOP']),
+                "ta":str(sat_dict['TA']),
+                "epoch":str(sat_dict['Epoch']),
+                "epoch_fmt":str(sat_dict['DateFormat']),
+                "radar_results":radar_results.to_string(index=False),
+                "radar_score":radar_score,
+                "optical_results":optical_results.to_string(index=False),
+                "optical_score":optical_score,
+                "best_station":best_station,
+                "opt_detect_results":optical_detectability_results.to_string(index=False),
+                "opt_detect_score":opt_detect_score,
+                } )
+    
+    # Print and save results
+    print(template)
+    filename = out_dir/'DIT_Results.txt'
+    with  open(str(filename),'w+') as myfile:
+            myfile.write(template)    
     
     
     return results
@@ -228,7 +319,7 @@ def compute_station_access(network,start_et,stop_et,satdark,save=False):
     if network == 'SSR':
         # SSR Network contains 49 stations
         stations = ['SSR-'+str(i+1) for i in range(49)]
-        stations = stations[:4] # FIXME: Shortened for testing.
+        # stations = stations[:4] # FIXME: Shortened for testing.
         
     elif network == 'SSRD':
         # SSRD Network contains 7 stations
@@ -244,8 +335,8 @@ def compute_station_access(network,start_et,stop_et,satdark,save=False):
     
     print('Computing {} Station Lighting and Access intervals'.format(network), flush=True)
     print('Stations: {}'.format(stations),flush=True)
-    dflos = pd.DataFrame(columns=['Station','ID','Start','Stop','Duration'])
-    dfvis = pd.DataFrame(columns=['Station','ID','Start','Stop','Duration'])
+    dflos = pd.DataFrame(columns=['Station','Access','Start','Stop','Duration'])
+    dfvis = pd.DataFrame(columns=['Station','Access','Start','Stop','Duration'])
     access_list = [] # List of visible access interval of stations
     for gs in tqdm(stations):
         
@@ -257,7 +348,7 @@ def compute_station_access(network,start_et,stop_et,satdark,save=False):
         los_access = find_access(start_et,stop_et,station=gs)
         # Convert to dataframe
         dflos_i = window_to_dataframe(los_access,timefmt='ET') # Load as dataframe
-        dflos_i.insert(0,'ID',dflos_i.index)
+        dflos_i.insert(0,'Access',dflos_i.index)
         dflos_i.insert(0,'Station',gs)
         dflos = dflos.append(dflos_i) # Append to global dataframe
         
@@ -266,7 +357,7 @@ def compute_station_access(network,start_et,stop_et,satdark,save=False):
         access_list.append(access) # Append to list of station access intervals
         # Convert to dataframe
         dfvis_i = window_to_dataframe(access,timefmt='ET') # Load as dataframe
-        dfvis_i.insert(0,'ID',dfvis_i.index)
+        dfvis_i.insert(0,'Access',dfvis_i.index)
         dfvis_i.insert(0,'Station',gs)
         dfvis = dfvis.append(dfvis_i)
         
@@ -291,9 +382,28 @@ def compute_station_access(network,start_et,stop_et,satdark,save=False):
             t = Time(dt, format='datetime', scale='utc') # Astropy Time object
             t_iso = t.iso # Times in iso
             dflos_i['Stop'] = pd.to_datetime(t_iso)
+            # Add rows for global statistics (min,max,mean,total)
+            # Minimum vals
+            min_row = dflos_i.iloc[dflos_i['Duration'].idxmin()].to_dict()
+            min_row['Station'] = 'Min Duration' # Change label
+            dflos_i = dflos_i.append(min_row, ignore_index=True)
+            # Maximum Duration vals
+            max_row = dflos_i.iloc[dflos_i['Duration'].idxmax()].to_dict()
+            max_row['Station'] = 'Max Duration' # Change label
+            dflos_i = dflos_i.append(max_row, ignore_index=True)
+            # Maximum Duration vals
+            mean_row = {'Station':'Mean Duration','Duration':dflos_i['Duration'].mean()}
+            dflos_i = dflos_i.append(mean_row, ignore_index=True)
+            # Insert empty row
+            ind = np.where(dflos_i['Station']=='Min Duration')[0]
+            df_new = pd.DataFrame(index=ind -1. + 0.5) # New dataframe at half integer indices
+            dflos_i = pd.concat([dflos_i, df_new]).sort_index().reset_index(drop=True)
+            dflos_i['Access'] = pd.to_numeric(dflos_i['Access'], errors = 'coerce').astype(pd.Int32Dtype())
+            
             # Save access data to file
             filename = gs + "_los_access_intervals.csv"
             dflos_i.to_csv(str(out_dir/filename),index=False)
+            del dflos_i
             
             
             # Visible access 
@@ -311,12 +421,34 @@ def compute_station_access(network,start_et,stop_et,satdark,save=False):
             t = Time(dt, format='datetime', scale='utc') # Astropy Time object
             t_iso = t.iso # Times in iso
             dfvis_i['Stop'] = pd.to_datetime(t_iso)
+            # Add rows for global statistics (min,max,mean,total)
+            # Minimum vals
+            min_row = dfvis_i.iloc[dfvis_i['Duration'].idxmin()].to_dict()
+            min_row['Station'] = 'Min Duration' # Change label
+            dfvis_i = dfvis_i.append(min_row, ignore_index=True)
+            # Maximum Duration vals
+            max_row = dfvis_i.iloc[dfvis_i['Duration'].idxmax()].to_dict()
+            max_row['Station'] = 'Max Duration' # Change label
+            dfvis_i = dfvis_i.append(max_row, ignore_index=True)
+            # Maximum Duration vals
+            mean_row = {'Station':'Mean Duration','Duration':dfvis_i['Duration'].mean()}
+            dfvis_i = dfvis_i.append(mean_row, ignore_index=True)
+            # Insert empty row
+            ind = np.where(dfvis_i['Station']=='Min Duration')[0]
+            df_new = pd.DataFrame(index=ind -1. + 0.5) # New dataframe at half integer indices
+            dfvis_i = pd.concat([dfvis_i, df_new]).sort_index().reset_index(drop=True)
+            dfvis_i['Access'] = pd.to_numeric(dfvis_i['Access'], errors = 'coerce').astype(pd.Int32Dtype())
             # Save access data to file
             filename = gs + "_vis_access_intervals.csv"
             dfvis_i.to_csv(str(out_dir/filename),index=False)
+            del dfvis_i
+    
+    # Save full vis and LOS access
+    dflos.to_csv(str(out_dir/"All_LOS_Access_{}.csv".format(network)),index=False)
+    dfvis.to_csv(str(out_dir/"All_Vis_Access_{}.csv".format(network)),index=False)
     
     # Plot the access periods
-    filename = network + "_access_intervals.html"
+    filename = "Access_intervals_{}.html".format(network)
     title = network + " Network Visible Access Intervals"
     plot_time_windows(access_list,stations,stations,#['blue']*len(stations), 
                       filename=str(out_dir/filename), 
@@ -396,6 +528,9 @@ def compute_optical_detectability(dfvis_ssr):
     # Find station with largest total access.
     dfgroup = dfvis_ssr[['Station','Duration']].groupby(['Station']).sum()
     best_station = dfgroup['Duration'].idxmax()
+    print("\nComputing optical Detectability", flush=True)
+    print("--------------------------------", flush=True)
+    print("Station with best access: {}".format(best_station), flush=True)
     
     # Extract access for that station
     df = dfvis_ssr[dfvis_ssr['Station'] == best_station]
@@ -414,7 +549,6 @@ def compute_optical_detectability(dfvis_ssr):
     dftopo = dftopo[0] # Select first station
     # Get visible access for this station
     dfa = dfvis_ssr[dfvis_ssr.Station == best_station]
-    dfa = dfa.rename(columns={"ID":"Access"})
     
     # Compute visual magnitude
     Rsat = 1 # Radius of satellite (m)
@@ -423,6 +557,11 @@ def compute_optical_detectability(dfvis_ssr):
     # Add to dataframe
     dftopo.insert(len(dftopo.columns),'Vmag',list(msat))
     dftopo.insert(len(dftopo.columns),'Vmag2',list(msat2))
+    # Save to file
+    out_dir = get_data_home()/'DITdata'
+    filename = out_dir/'BestAccess.csv'
+    dftopo.to_csv(str(out_dir/filename),index=False)
+    
     
     # Constraints
     cutoff_mag = 15. # Maximum magnitude for visibility
@@ -446,34 +585,40 @@ def compute_optical_detectability(dfvis_ssr):
     results = results.append(opt_detect_row, ignore_index=True)
     
     
-    # Generate plots
-    import matplotlib.pyplot as plt
-    fig, (ax1,ax2) = plt.subplots(2,1)
-    fig.suptitle('Visual Magnitude')
-    # Magnitude vs elevation
-    ax1.plot(np.rad2deg(dftopo['Sat.El']),msat,'.b')
-    ax1.plot(np.rad2deg(dftopo['Sat.El']),msat2,'.k')
-    ax1.plot([0,90],[max_mag,max_mag],'-r')
-    ax1.set_xlabel("Elevation (deg)")
-    ax1.set_ylabel("Visual Magnitude (mag)")
-    ax1.invert_yaxis() # Invert y axis
-    # Az/El
-    ax2.plot(dftopo['ET'],msat,'-b')
-    ax2.plot(dftopo['ET'],msat2,'-k')
-    # Max/min/mean
-    ax2.plot([dftopo['ET'].iloc[0],dftopo['ET'].iloc[-1]],[max_mag,max_mag],'-r')
-    ax2.plot([dftopo['ET'].iloc[0],dftopo['ET'].iloc[-1]],[min_mag,min_mag],'-r')
-    ax2.plot([dftopo['ET'].iloc[0],dftopo['ET'].iloc[-1]],[avg_mag,avg_mag],'-r')
-    ax2.invert_yaxis() # Invert y axis
-    ax2.set_xlabel("Epoch (ET)")
-    ax2.set_ylabel("Visual Magnitude (mag)")
-    fig.show()
+    # # Generate plots
+    # import matplotlib.pyplot as plt
+    # fig, (ax1,ax2) = plt.subplots(2,1)
+    # fig.suptitle('Visual Magnitude')
+    # # Magnitude vs elevation
+    # ax1.plot(np.rad2deg(dftopo['Sat.El']),msat,'.b')
+    # ax1.plot(np.rad2deg(dftopo['Sat.El']),msat2,'.k')
+    # ax1.plot([0,90],[max_mag,max_mag],'-r')
+    # ax1.set_xlabel("Elevation (deg)")
+    # ax1.set_ylabel("Visual Magnitude (mag)")
+    # ax1.invert_yaxis() # Invert y axis
+    # # Az/El
+    # ax2.plot(dftopo['ET'],msat,'-b')
+    # ax2.plot(dftopo['ET'],msat2,'-k')
+    # # Max/min/mean
+    # ax2.plot([dftopo['ET'].iloc[0],dftopo['ET'].iloc[-1]],[max_mag,max_mag],'-r')
+    # ax2.plot([dftopo['ET'].iloc[0],dftopo['ET'].iloc[-1]],[min_mag,min_mag],'-r')
+    # ax2.plot([dftopo['ET'].iloc[0],dftopo['ET'].iloc[-1]],[avg_mag,avg_mag],'-r')
+    # ax2.invert_yaxis() # Invert y axis
+    # ax2.set_xlabel("Epoch (ET)")
+    # ax2.set_ylabel("Visual Magnitude (mag)")
+    # fig.show()
     
     # Plot
-    plot_visibility(dftopo) # Plot of the satellite el,range,visible magnitude
-    # plot_overpass(dftopo, dfa) # Sky plot of overpasses.
+    out_dir = get_data_home()/'DITdata'
+    plot_visibility(dftopo, filename = str(out_dir/"OpticalDetectability.html"),
+                    title="Optical Detectability Station {}".format(best_station)) # Plot of the satellite el,range,visible magnitude
     
-    return results
+    plot_overpass_skyplot(dftopo, dfa,
+                          filename = str(out_dir/"OpticalDetectabilitySkyplot.html"),
+                          title="Visible Overpasses Station {}".format(best_station)
+                          ) # Sky plot of overpasses.
+    
+    return results, best_station
 
 #%% Optical Analysis Workflow
 

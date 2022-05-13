@@ -40,6 +40,9 @@ def test_run_analysis():
     # Run Analysis
     results = run_analysis(sat_dict,start_date,stop_date,step)
     
+    # Known errors:
+    # SPICE(KERNELPOOLFULL)
+    # Solution: Empty kernel pool. Or restart IDE.
     
     return results
 
