@@ -529,7 +529,7 @@ def plot_time_windows(wins,groups,Types,
     
     # Render
     if filename is None:
-        filenmae = 'temp-plot.html'
+        filename = 'temp-plot.html'
     plotly.offline.plot(fig, filename = str(filename), validate=False)
 
     
@@ -624,7 +624,7 @@ def plot_visibility(dftopo,filename=None,title=None):
     
     # Render
     if filename is None:
-        filenmae = 'temp-plot.html'
+        filename = 'temp-plot.html'
     plotly.offline.plot(fig, filename = str(filename), validate=False)
     
     # Reset topo
@@ -720,13 +720,172 @@ def plot_overpass_skyplot(dftopo, dfa, filename=None,title=None):
     
     # Render
     if filename is None:
-        filenmae = 'temp-plot.html'
+        filename = 'temp-plot.html'
     plotly.offline.plot(fig, filename = str(filename), validate=False)
     
     
     del dftopo1
     
     return
+
+def plot_groundstation_network(filename=None):
+    ''' Plot the locations of stations in the SSR or SSRD networks '''
+    
+    from plotly.subplots import make_subplots
+    
+    # Read data
+    from GroundstationData import get_groundstations
+    
+    
+    # Plotly go
+    # fig = go.Figure()
+    fig = make_subplots(rows=1, cols=2,column_widths=[0.35, 0.65],
+                        specs=[[{"type": "scattergeo"},{"type": "scattergeo"}]],
+                        )
+    
+    # SSR
+    dfssr = get_groundstations(network='SSR')
+    fig.add_trace(go.Scattergeo(
+        name="SSR",
+        lat=dfssr.Lat,
+        lon=dfssr.Lon,
+        mode='markers',
+        marker_color='red',
+        text=dfssr.Name,
+        legendgroup='SSR',
+        customdata=dfssr,
+        hovertemplate=
+                "<b>%{text}</b><br><br>" +
+                "NAIF: %{customdata[1]}<br>" +
+                "Lat: %{customdata[2]:.2f}<br>" +
+                "Lon: %{customdata[3]:.2f}<br>" +
+                "Alt: %{customdata[4]:.2f} km<br>" +
+                "x: %{customdata[5]:.2f} km<br>" +
+                "y: %{customdata[6]:.2f} km<br>" +
+                "z: %{customdata[7]:.2f} km<br>",
+        ),
+        row=1, col=1,
+    )
+    # SSRD
+    dfssrd = get_groundstations(network='SSRD')
+    fig.add_trace(go.Scattergeo(
+        name="SSRD",
+        lat=dfssrd.Lat,
+        lon=dfssrd.Lon,
+        mode='markers',
+        marker_color='blue',
+        text=dfssrd.Name,
+        legendgroup='SSRD',
+        customdata=dfssrd,
+        hovertemplate=
+                "<b>%{text}</b><br><br>" +
+                "NAIF: %{customdata[1]}<br>" +
+                "Lat: %{customdata[2]:.2f}<br>" +
+                "Lon: %{customdata[3]:.2f}<br>" +
+                "Alt: %{customdata[4]:.2f} km<br>" +
+                "x: %{customdata[5]:.2f} km<br>" +
+                "y: %{customdata[6]:.2f} km<br>" +
+                "z: %{customdata[7]:.2f} km<br>",
+        ),
+        row=1, col=1,
+    )
+    
+    # SSR
+    dfssr = get_groundstations(network='SSR')
+    fig.add_trace(go.Scattergeo(
+        name="SSR",
+        lat=dfssr.Lat,
+        lon=dfssr.Lon,
+        mode='markers',
+        marker_color='red',
+        text=dfssr.Name,
+        legendgroup='SSR', showlegend=False,
+        customdata=dfssr,
+        hovertemplate=
+                "<b>%{text}</b><br><br>" +
+                "NAIF: %{customdata[1]}<br>" +
+                "Lat: %{customdata[2]:.2f}<br>" +
+                "Lon: %{customdata[3]:.2f}<br>" +
+                "Alt: %{customdata[4]:.2f} km<br>" +
+                "x: %{customdata[5]:.2f} km<br>" +
+                "y: %{customdata[6]:.2f} km<br>" +
+                "z: %{customdata[7]:.2f} km<br>",
+        ),
+        row=1, col=2,
+    )
+    # SSRD
+    dfssrd = get_groundstations(network='SSRD')
+    fig.add_trace(go.Scattergeo(
+        name="SSRD",
+        lat=dfssrd.Lat,
+        lon=dfssrd.Lon,
+        mode='markers',
+        marker_color='blue',
+        text=dfssrd.Name,
+        legendgroup='SSRD', showlegend=False,
+        customdata=dfssrd,
+        hovertemplate=
+                "<b>%{text}</b><br><br>" +
+                "NAIF: %{customdata[1]}<br>" +
+                "Lat: %{customdata[2]:.2f}<br>" +
+                "Lon: %{customdata[3]:.2f}<br>" +
+                "Alt: %{customdata[4]:.2f} km<br>" +
+                "x: %{customdata[5]:.2f} km<br>" +
+                "y: %{customdata[6]:.2f} km<br>" +
+                "z: %{customdata[7]:.2f} km<br>",
+        ),
+        row=1, col=2,
+    )
+    
+    
+    
+    # Update layout
+    # fig.update_layout(mapbox_style="open-street-map")
+    # Update projection
+    # See: https://plotly.com/python/reference/layout/geo/
+    fig.update_geos(row=1, col=1,
+                    projection_type="orthographic", # robinson
+                    scope="world",showcountries=True, countrycolor="Black",
+                    lataxis_showgrid=True, lonaxis_showgrid=True,
+                    showland=True, landcolor="LightGreen",
+                    showocean=True, oceancolor="LightBlue",
+                    showlakes=True, lakecolor="Blue",
+                    )
+    
+    fig.update_geos(row=1, col=2,
+                    projection_type='robinson',
+                    scope="world",showcountries=True, countrycolor="Black",
+                    lataxis_showgrid=True, lonaxis_showgrid=True,
+                    showland=True, landcolor="LightGreen",
+                    showocean=True, oceancolor="LightBlue",
+                    showlakes=True, lakecolor="Blue",
+                    )
+    
+    # # Add title
+    # fig.update_layout(
+    #     title="Groundstation Networks",
+    #     font=dict(
+    #         family="Times New Roman",
+    #         size=18,
+    #         color="black"
+    #     )
+    # )
+    
+    fig.update_layout(
+    title=go.layout.Title(
+        text="<b>Groundstation Networks</b> <br><br><sup>SSR: 49 stations used for Trackability analysis. <br>SSRD: 7 stations used for Detectability analysis. </sup>",
+        xref="paper",
+        x=0
+    ),
+    )
+    
+    # Render
+    if filename is None:
+        filename = 'temp-plot.html'
+    plotly.offline.plot(fig, filename = str(filename), validate=False)
+    
+    return
+
 
 
 #%% Overpass plots
