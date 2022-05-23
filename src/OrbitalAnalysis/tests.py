@@ -26,7 +26,15 @@ from Events import *
 # Main module
 
 def test_run_analysis():
-    ''' Test of main DIT analysis workflow '''
+    ''' 
+    Test of main DIT analysis workflow 
+    1. Generating SPK files for a user-defined satellite.
+    2. Comopute satellite lighting conditions.
+    3. Compute lighting conditions for each station in SSR and SSRD networks.
+    4. Compute optical trackability metrics.
+    5. Compute radar trackability metrics.
+    6. Compute optical detectability metrics.
+    '''
     
     # INPUTS
     # NORAD = 25544 # NORAD ID of satellite e.g. 25544 for ISS
@@ -45,38 +53,6 @@ def test_run_analysis():
     # Solution: Empty kernel pool. Or restart IDE.
     
     return results
-
-
-def test_analysis():
-    '''
-    Depreciated!
-    
-    Run an analysis. 
-    Generating SPK files for a user-defined satellite.
-    Run optical analysis to compute optical metrics for average duration, interval.
-    '''
-    
-    # INPUTS
-    # NORAD = 25544 # NORAD ID of satellite e.g. 25544 for ISS
-    start_date = '2020-10-26 16:00:00.000' # Start Date e.g. '2020-10-26 16:00:00.000'
-    stop_date =  '2020-11-25 15:59:59.999' # Stop Date e.g.  '2020-11-25 15:59:59.999'
-    step = 10. # Time step (sec)
-    sat_dict = {"DateFormat": "UTCGregorian", "Epoch": '26 Oct 2020 16:00:00.000',
-                "SMA": 6963.0, "ECC": 0.0188, "INC": 97.60,
-                "RAAN": 308.90, "AOP": 81.20, "TA": 0.00}
-    
-    
-    # Create Sat.bsp
-    # create_ephem_files(NORAD,start_date,stop_date,step,method='tle') # From TLE
-    create_ephem_files(sat_dict,start_date,stop_date,step,method='two-body') # From TLE
-    
-    # Trackability anayslis
-    optical_results, radar_results, station_results = trackability_analysis(start_date,stop_date,step)
-    
-    
-    return optical_results, radar_results, station_results
-
-
 
 
 #%% Ephemerides
