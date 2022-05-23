@@ -319,7 +319,7 @@ def find_station_lighting(start_et,stop_et,station='DSS-43',method='ref_el', ref
 
 #%% Access
 
-def find_access(start_et,stop_et,station='DSS-43'):
+def find_access(start_et,stop_et,station='DSS-43',min_el=0.):
     '''
     Find time intervals when a ground station has line-of-sight access to a
     satellite - when the satellite is above a minimum elevation angle in the
@@ -333,12 +333,14 @@ def find_access(start_et,stop_et,station='DSS-43'):
 
     Parameters
     ----------
-    start_et : TYPE
-        DESCRIPTION.
-    stop_et : TYPE
-        DESCRIPTION.
-    station : TYPE, optional
+    start_et : float
+        Start time (Ephemeris time).
+    stop_et : float
+        Stop time (Ephemeris time).
+    station : str, optional
         DESCRIPTION. The default is 'DSS-43'.
+    min_el : Float, optional
+        Minimum elevation (deg) to use for geometry search. The default is 0.
 
     Returns
     -------
@@ -402,8 +404,8 @@ def find_access(start_et,stop_et,station='DSS-43'):
     obsrvr = station # Observer
     crdsys = "LATITUDINAL" # Coordinate system
     coord  = "LATITUDE" # Coordinate of interest
-    refval = 0.*spice.rpd() # Reference value
-    relate = ">"             # Relational operator 
+    refval = min_el*spice.rpd() # Reference value
+    relate = ">"            # Relational operator 
     adjust = 0. # Adjustment value for absolute extrema searches
     step = 10. # Step size (1 hrs)
     

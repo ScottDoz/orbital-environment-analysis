@@ -88,19 +88,19 @@ def run_analysis(sat_dict,start_date,stop_date,step):
     satlight, satpartial, satdark = find_sat_lighting(start_et,stop_et)
     
     # 3. Compute SSR and SSRD Station Lighting and access
-    dflos_ssr, dfvis_ssr = compute_station_access('SSR',start_et,stop_et,satdark,save=True)
-    dflos_ssrd, dfvis_ssrd = compute_station_access('SSRD',start_et,stop_et,satdark,save=True)
+    dflos_ssr, dfvis_ssr, dfcomblos_ssr, dfcombvis_ssr = compute_station_access('SSR',start_et,stop_et,satdark,save=True)
+    dflos_ssrd, dfvis_ssrd, dfcomblos_ssrd, dfcombvis_ssrd = compute_station_access('SSRD',start_et,stop_et,satdark,save=True)
     
     # 4. Optical Trackability
     # Compute from combined list of visible access dfvis_ssr
     # (Uses 49 SSR stations)
-    optical_results = compute_tracking_stats(dfvis_ssr,scenario_duration)
+    optical_results = compute_tracking_stats(dfcombvis_ssr,scenario_duration)
     optical_score = optical_results['Score'].mean()
     
     # 5. Radar Trackability
-    # Compute from combined list of line-of-sight access dflos_ssr
+    # Compute from combined list of line-of-sight access dfcomblos_ssr
     # (Uses 49 SSR stations)
-    radar_results = compute_tracking_stats(dflos_ssr,scenario_duration)
+    radar_results = compute_tracking_stats(dfcomblos_ssr,scenario_duration)
     radar_score = radar_results['Score'].mean() # Total radar score
 
     # 6. Optical Detectability
@@ -313,7 +313,7 @@ def create_ephem_files(sat,start_date,stop_date,step,method):
 
 def compute_station_access(network,start_et,stop_et,satdark,save=False):
     
-    # Loop through all stations and 
+    # Loop through all stations and compute line-of-sight and visible access 
     
     # Define station names
     if network == 'SSR':
@@ -337,7 +337,8 @@ def compute_station_access(network,start_et,stop_et,satdark,save=False):
     print('Stations: {}'.format(stations),flush=True)
     dflos = pd.DataFrame(columns=['Station','Access','Start','Stop','Duration'])
     dfvis = pd.DataFrame(columns=['Station','Access','Start','Stop','Duration'])
-    access_list = [] # List of visible access interval of stations
+    los_access_list = [] # List of LOS access interval of stations
+    vis_access_list = [] # List of visible access interval of stations
     for gs in tqdm(stations):
         
         # Compute station lighting intervals
@@ -345,7 +346,9 @@ def compute_station_access(network,start_et,stop_et,satdark,save=False):
         gslight, gsdark = find_station_lighting(start_et,stop_et,station=gs,ref_el=-0.25)
     
         # Compute line-of-sight access intervals
-        los_access = find_access(start_et,stop_et,station=gs)
+        # Use min_el = 30 deg (120 deg cone angle from zenith)
+        los_access = find_access(start_et,stop_et,station=gs,min_el=30.)
+        los_access_list.append(los_access) # Append to list of station access intervals
         # Convert to dataframe
         dflos_i = window_to_dataframe(los_access,timefmt='ET') # Load as dataframe
         dflos_i.insert(0,'Access',dflos_i.index)
@@ -354,7 +357,7 @@ def compute_station_access(network,start_et,stop_et,satdark,save=False):
         
         # Compute visible (constrained) access intervals
         access = constrain_access_by_lighting(los_access,gslight,satdark)
-        access_list.append(access) # Append to list of station access intervals
+        vis_access_list.append(access) # Append to list of station access intervals
         # Convert to dataframe
         dfvis_i = window_to_dataframe(access,timefmt='ET') # Load as dataframe
         dfvis_i.insert(0,'Access',dfvis_i.index)
@@ -443,19 +446,35 @@ def compute_station_access(network,start_et,stop_et,satdark,save=False):
             dfvis_i.to_csv(str(out_dir/filename),index=False)
             del dfvis_i
     
-    # Save full vis and LOS access
+    # Compute combined LOS access intervals (union of all stations)
+    combined_los_access = los_access_list[0] # First station
+    if len(los_access_list)>1:
+        for win in los_access_list[1:]:
+            combined_los_access = spice.wnunid(combined_los_access,win) # Union of intervals
+    dfcomblos = window_to_dataframe(combined_los_access,timefmt='ET') # Load as dataframe
+    
+    # Compute combined visible access intervals (union of all stations)
+    combined_vis_access = vis_access_list[0] # First station
+    if len(vis_access_list)>1:
+        for win in vis_access_list[1:]:
+            combined_vis_access = spice.wnunid(combined_vis_access,win) # Union of intervals
+    dfcombvis = window_to_dataframe(combined_vis_access,timefmt='ET') # Load as dataframe
+    
+    # Save access lists to csv
     dflos.to_csv(str(out_dir/"All_LOS_Access_{}.csv".format(network)),index=False)
     dfvis.to_csv(str(out_dir/"All_Vis_Access_{}.csv".format(network)),index=False)
-    
+    dfcombvis.to_csv(str(out_dir/"Combined_Vis_Access_{}.csv".format(network)),index=False)
+    dfcomblos.to_csv(str(out_dir/"Combined_LOS_Access_{}.csv".format(network)),index=False)
+
     # Plot the access periods
     filename = "Access_intervals_{}.html".format(network)
     title = network + " Network Visible Access Intervals"
-    plot_time_windows(access_list,stations,stations,#['blue']*len(stations), 
+    plot_time_windows(vis_access_list,stations,stations,#['blue']*len(stations), 
                       filename=str(out_dir/filename), 
                       group_label='Station',
                       title=title)
     
-    return dflos, dfvis
+    return dflos, dfvis, dfcomblos, dfcombvis
 
 def compute_tracking_stats(df,scenario_duration):
     ''' 
@@ -685,7 +704,8 @@ def trackability_analysis(start_date,stop_date,step, DATA_DIR=None):
         gslight, gsdark = find_station_lighting(start_et,stop_et,station=gs,ref_el=-0.25)
     
         # Compute line-of-sight access intervals
-        los_access = find_access(start_et,stop_et,station=gs)
+        # Use min_el = 30. (120 deg cone angle from zenith).
+        los_access = find_access(start_et,stop_et,station=gs,min_el=30.)
         # Convert to dataframe
         dflos = window_to_dataframe(los_access,timefmt='ET') # Load as dataframe
         dflos.insert(0,'ID',dflos.index)
