@@ -20,7 +20,10 @@ from Ephem import *
 from Events import *
 # from GmatScenario import *
 
+import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
 
+import pdb
 
 #%% Overpass
 # Main module
@@ -43,7 +46,8 @@ def test_run_analysis():
     step = 10. # Time step (sec)
     sat_dict = {"DateFormat": "UTCGregorian", "Epoch": '26 Oct 2020 16:00:00.000',
                 "SMA": 6963.0, "ECC": 0.0188, "INC": 97.60,
-                "RAAN": 308.90, "AOP": 81.20, "TA": 0.00}
+                "RAAN": 308.90, "AOP": 81.20, "TA": 0.00,
+                "rcs": 0.55}
     
     # Run Analysis
     results = run_analysis(sat_dict,start_date,stop_date,step)
@@ -158,7 +162,150 @@ def test_compare_ephemerides():
     return df
 
 
+def validate_optical_access(case):
+    '''
+    Generate ephemeris data of particular passes from STK validation data.
+    
+    optical_chain_1_Access_Data.csv give the computed visible access times for
+    the SSR network satellites (used for optical trackability metric). Check the
+    sun elevation angle at the start and end of these access times to infer
+    lighting constraints.
+    
+    Exampe pass to test: 10th pass of Station 1 (line 11).
+    This pass does not match values computed using -0.5 elevation geometric
+    constraint.
+    
+    '''
+    
+    # Load LSK
+    kernel_dir = get_data_home() / 'Kernels'
+    spice.furnsh( str(kernel_dir/'naif0012.tls') ) # Leap second kernel
+    
+    # Eclipse parameters
+    front = "EARTH" # Name of occulting body
+    fshape = "ELLIPSOID" # Type of shape model for front body (POINT, ELLIPSOID, DSK/UNPRIORITIZED)
+    fframe = "ITRF93" #"IAU_EARTH" or "ITRF93" # # Body-fixed frame of front body
+    back =  "SUN" # Name of occulted body
+    bshape = "ELLIPSOID" # Type of shape model for back body
+    bframe = "IAU_SUN" # Body-fixed frame of back body (empty)
+    # abcorr = "NONE" # Aberration correction flag
+    abcorr = "CN"
+    obsrvr = "SSR-1"  # Observer
+    step = 5. # Step size (s)
 
+    
+    # First test case ---------------------------------------------------------
+    # Start and stop times of pass
+    
+    if case == 1:
+        # Test case 1
+        start_date = '2020-11-08 19:23:11.316'
+        stop_date = '2020-11-08 19:27:40.092'
+        tstep = 10 # Step size (s)
+    elif case == 2:
+        # Test case 2
+        # Line #12 in csv value is a 14 second access that is not found.
+        start_date = '2020-11-09 19:28:34.197'
+        stop_date = '2020-11-09 19:28:48.888'
+        tstep = 1 # Step size (s)
+    elif case == 3:
+        # Test case 3 (or 2b)
+        # The equivalent access period for case 2, without lighting constraints
+        start_date = '2020-11-09 19:28:34.212' # 2020-11-09 19:28:34.212
+        stop_date = '2020-11-09 19:33:13.470' # 2020-11-09 19:33:13.470
+        tstep = 1 # Step size (s)
+        
+
+    # Convert start and stop dates to Ephemeris Time
+    start_et = spice.str2et(start_date)
+    stop_et = spice.str2et(stop_date)
+       
+    # Generate vector of et
+    et = np.arange(start_et,stop_et,tstep)
+    et = np.append(et,stop_et)
+    # Extended et
+    et2 = np.arange(start_et-30*60,stop_et+30*60,tstep)
+    et2 = np.append(et2,stop_et+30*60)
+    
+    # Get ephemeris in Topocentric frame
+    dftopo = get_ephem_TOPO(et,groundstations=['SSR-1'])[0] # Access
+    dftopo2 = get_ephem_TOPO(et2,groundstations=['SSR-1'])[0] # Extended time frame
+    
+    # Compute satellite lighting
+    satlight, satpartial, satdark = find_sat_lighting(start_et-30*60,stop_et+30*60)
+    satlight = window_to_dataframe(satlight)
+    
+    # Compute station lighting
+    cnfine = spice.cell_double(2) # Initialize window of interest
+    spice.wninsd(start_et-30*60, stop_et+30*60, cnfine ) # Insert time interval in window
+    
+    # Full occulation (dark or umbra)
+    full = spice.cell_double(2*100) # Initialize result
+    full = spice.gfoclt ( "FULL",
+                          front,   fshape,  fframe,
+                          back,    bshape,  bframe,
+                          abcorr,  obsrvr,  step,
+                          cnfine, full          )
+    full = window_to_dataframe(full)
+    
+    # Full occulation (dark or umbra)
+    partial = spice.cell_double(2*100) # Initialize result
+    partial = spice.gfoclt ( "PARTIAL",
+                          front,   fshape,  fframe,
+                          back,    bshape,  bframe,
+                          abcorr,  obsrvr,  step,
+                          cnfine, partial          )
+    partial = window_to_dataframe(partial)
+    
+    # light,dark = find_station_lighting(start_et-30*60,stop_et+30*60,station='SSR-1',method='eclipse')
+    light, dark = find_station_lighting(start_et-30*60,stop_et+30*60,station='SSR-1',ref_el=0.268986)
+    light = window_to_dataframe(light)
+    dark = window_to_dataframe(dark)
+    
+    pdb.set_trace()
+    
+    # Plot satellite and sun elevations
+    fig, ax1 = plt.subplots(1,1)
+    fig.suptitle('SSR-1 Topocentric Coordinates')
+    plt.xlabel("Epoch (ET)")
+    plt.ylabel("Elevation (deg)")
+    ax1.plot(dftopo2['ET'],np.rad2deg(dftopo2['Sun.El']),':k',label='Sun El') # Sun
+    ax1.plot(dftopo['ET'],np.rad2deg(dftopo['Sun.El']),'-k',label='Sun El') # Sun
+    ax1.plot(dftopo2['ET'],np.rad2deg(dftopo2['Sat.El']),':b',label='Sat El') # Sat
+    ax1.plot(dftopo['ET'],np.rad2deg(dftopo['Sat.El']),'-b',label='Sat El') # Sat
+    # try:
+    #     ax1.add_patch(Rectangle((full['Start'].iloc[0], -10), full['Stop'].iloc[0] - full['Start'].iloc[0], 100,facecolor = 'grey',alpha=0.2))
+    # except:
+    #     pass
+    # try:
+    #     ax1.add_patch(Rectangle((partial['Start'].iloc[0], -10), partial['Stop'].iloc[0] - partial['Start'].iloc[0], 100,facecolor = 'blue',alpha=0.2))
+    # except:
+    #     pass
+    try:
+        ax1.add_patch(Rectangle((light['Start'].iloc[0], -10), light['Stop'].iloc[0] - light['Start'].iloc[0], 100,facecolor = 'yellow',alpha=0.2))
+    except:
+        pass
+    ax1.add_patch(Rectangle((satlight['Start'].iloc[0], 100), satlight['Stop'].iloc[0] - satlight['Start'].iloc[0], 10,facecolor = 'yellow',alpha=0.2))
+    # ax1.add_patch(Rectangle((satdark['Start'].iloc[0], 100), satdark['Stop'].iloc[0] - satdark['Start'].iloc[0], 10,facecolor = 'black',alpha=0.2))
+    ax1.legend(loc="upper left")
+    fig.show()
+    
+    # Analysis 1
+    # For this access, the sun is rising at the end of the access period. The
+    # period ends when the satellite elevation drops below the 30 deg threshold.
+    # The sun elevation at this time is -0.1 deg.
+    # From this, we can infer that STK cuts off sun elevations at 0 deg.
+
+    # Analysis 2:
+    # This access starts at sat el = 30 deg, and ends at Sun.El = +0.27226 deg.
+    # From this, we infer that partial sunlight is included, and only full
+    # sunlight is excluded from the visible access.
+    
+    # Solution:
+    # Compute visible access from LOS access windows, and remove station full
+    # daylight windows.
+    
+    return dftopo
 
 
 

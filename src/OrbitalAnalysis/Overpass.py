@@ -33,8 +33,9 @@ from SatelliteData import query_norad
 from utils import get_data_home
 from Ephem import *
 from Events import *
-from Visualization import plot_time_windows, plot_visibility, plot_overpass_skyplot
+from Visualization import plot_time_windows, plot_visibility, plot_overpass_skyplot, plot_linkbudget
 from GroundstationData import get_groundstations
+from Communications import *
 # from GmatScenario import *
 
 
@@ -70,7 +71,6 @@ def run_analysis(sat_dict,start_date,stop_date,step):
     # Check if directory exists and create
     if not os.path.exists(str(out_dir)):
         os.makedirs(str(out_dir))
-
     
     
     # 0. Check all generic kernels exist
@@ -86,10 +86,13 @@ def run_analysis(sat_dict,start_date,stop_date,step):
     # 2. Compute satellite lighting intervals
     print('\nComputing Satellite Lighting intervals', flush=True)
     satlight, satpartial, satdark = find_sat_lighting(start_et,stop_et)
+    satlight1 = spice.wnunid(satlight,satpartial) # Full or partial light
     
     # 3. Compute SSR and SSRD Station Lighting and access
-    dflos_ssr, dfvis_ssr, dfcomblos_ssr, dfcombvis_ssr = compute_station_access('SSR',start_et,stop_et,satdark,save=True)
-    dflos_ssrd, dfvis_ssrd, dfcomblos_ssrd, dfcombvis_ssrd = compute_station_access('SSRD',start_et,stop_et,satdark,save=True)
+    # SSR: use min_el = 30 deg (120 deg cone angle from zenith)
+    # SSRD: use min_el = 5 deg (since targeted at satellite)
+    dflos_ssr, dfvis_ssr, dfcomblos_ssr, dfcombvis_ssr = compute_station_access('SSR',start_et,stop_et,satlight1,30.,save=True)
+    dflos_ssrd, dfvis_ssrd, dfcomblos_ssrd, dfcombvis_ssrd = compute_station_access('SSRD',start_et,stop_et,satlight1,5.,save=True)
     
     # 4. Optical Trackability
     # Compute from combined list of visible access dfvis_ssr
@@ -104,17 +107,22 @@ def run_analysis(sat_dict,start_date,stop_date,step):
     radar_score = radar_results['Score'].mean() # Total radar score
 
     # 6. Optical Detectability
-    optical_detectability_results, best_station = compute_optical_detectability(dfvis_ssr)
+    optical_detectability_results, best_station_opt_det = compute_optical_detectability(dfvis_ssrd)
     opt_detect_score = optical_detectability_results['Score'].iloc[0]
-
+    
+    # 7. Radar Detectability
+    rcs = sat_dict['rcs'] # Extract RCS (m^2)
+    radar_detectability_results, best_station_radar_det = compute_radar_detectability(dflos_ssrd, rcs) # Use LOS 
+    radar_detect_score = radar_detectability_results['Score'].iloc[0]
+    
     # Save results to dict ---------------------------------
     # Results to return in python
     results = {'SSRD_los':dflos_ssrd, 'SSRD_vis':dfvis_ssrd,
-               'SSR_los':dflos_ssr, 'SSR_vis':dfvis_ssr,
-               'radar_track_results':radar_results,'optical_track_results':optical_results,
-               'radar_track_score':radar_score,'optical_track_score':optical_score,
-               'optical_detect_results':optical_detectability_results,
-               'optical_detect_score': opt_detect_score}
+                'SSR_los':dflos_ssr, 'SSR_vis':dfvis_ssr,
+                'radar_track_results':radar_results,'optical_track_results':optical_results,
+                'radar_track_score':radar_score,'optical_track_score':optical_score,
+                'optical_detect_results':optical_detectability_results,
+                'optical_detect_score': opt_detect_score}
     
     # JSON compatible version for saving
     results1 = {'sat_dict':sat_dict,
@@ -142,6 +150,11 @@ def run_analysis(sat_dict,start_date,stop_date,step):
     print('\nOptical Detectability')
     print(optical_detectability_results)
     print("\nOverall Optical Detectability Score: {}\n".format(opt_detect_score))
+    
+    # Print Detectability Results
+    print('\nRadar Detectability')
+    print(radar_detectability_results)
+    print("\nOverall Radar Detectability Score: {}\n".format(radar_detect_score))
     
     # Save results to json
     # Save to file
@@ -186,11 +199,19 @@ Overall Optical Trackability Score: {optical_score}
 
 Optical Detectability
 ---------------------
-Best access station: {best_station}
+Best access station: {best_station_opt_det}
 
 {opt_detect_results}
 
 Overall Optical Detectability Score: {opt_detect_score}
+
+Radar Detectability
+---------------------
+Best access station: {best_station_radar_det}
+
+{radar_detect_results}
+
+Overall Radar Detectability Score: {radar_detect_score}
 
 
 '''.format(**{  "start_date":str(start_date),
@@ -210,9 +231,13 @@ Overall Optical Detectability Score: {opt_detect_score}
                 "radar_score":radar_score,
                 "optical_results":optical_results.to_string(index=False),
                 "optical_score":optical_score,
-                "best_station":best_station,
+                "best_station_opt_det":best_station_opt_det,
                 "opt_detect_results":optical_detectability_results.to_string(index=False),
                 "opt_detect_score":opt_detect_score,
+                
+                "best_station_radar_det":best_station_radar_det,
+                "radar_detect_results":radar_detectability_results.to_string(index=False),
+                "radar_detect_score":radar_detect_score,
                 } )
     
     # Print and save results
@@ -311,7 +336,7 @@ def create_ephem_files(sat,start_date,stop_date,step,method):
     
     return
 
-def compute_station_access(network,start_et,stop_et,satdark,save=False):
+def compute_station_access(network,start_et,stop_et,satlight, min_el, save=False):
     
     # Loop through all stations and compute line-of-sight and visible access 
     
@@ -328,7 +353,15 @@ def compute_station_access(network,start_et,stop_et,satdark,save=False):
     # Define a working folder to output the data
     out_dir = get_data_home()/'DITdata'
     
-    
+    # Compute Sun's angular radius of sun for elevation constraints
+    # Angle found from radius of Sun and average Earth-Sun distance.
+    et = np.arange(start_et,stop_et,10); et = np.append(et,stop_et)
+    dftopo = get_ephem_TOPO(et,groundstations=[stations[0]])[0] # Ephemeris of first stations
+    rsun = 695700. # Radius of Sun (km)
+    # ang_radius = np.mean(np.rad2deg(np.arctan2(rsun,dftopo['Sun.R'].to_numpy())))
+    ang_radius = np.rad2deg(np.arctan2(rsun, np.mean(dftopo['Sun.R'].to_numpy()))) # 0.269
+    # This angle can be used to find station lighting conditions
+    del et, dftopo
     
     # Loop through stations
     # TODO: in paralellize this function
@@ -342,12 +375,12 @@ def compute_station_access(network,start_et,stop_et,satdark,save=False):
     for gs in tqdm(stations):
         
         # Compute station lighting intervals
-        # gslight, gsdark = find_station_lighting(start_et,stop_et,station=gs)
-        gslight, gsdark = find_station_lighting(start_et,stop_et,station=gs,ref_el=-0.25)
+        # gslight, gsdark = find_station_lighting(start_et,stop_et,station=gs,method='eclipse')
+        gslight, gsdark = find_station_lighting(start_et,stop_et,station=gs,ref_el=ang_radius) # 0.268986 ref_el=-0.25
     
         # Compute line-of-sight access intervals
         # Use min_el = 30 deg (120 deg cone angle from zenith)
-        los_access = find_access(start_et,stop_et,station=gs,min_el=30.)
+        los_access = find_access(start_et,stop_et,station=gs,min_el=min_el)
         los_access_list.append(los_access) # Append to list of station access intervals
         # Convert to dataframe
         dflos_i = window_to_dataframe(los_access,timefmt='ET') # Load as dataframe
@@ -356,7 +389,8 @@ def compute_station_access(network,start_et,stop_et,satdark,save=False):
         dflos = dflos.append(dflos_i) # Append to global dataframe
         
         # Compute visible (constrained) access intervals
-        access = constrain_access_by_lighting(los_access,gslight,satdark)
+        # access = constrain_access_by_lighting(los_access,gslight,satdark)
+        access = constrain_access_by_lighting(los_access,gsdark,satlight)
         vis_access_list.append(access) # Append to list of station access intervals
         # Convert to dataframe
         dfvis_i = window_to_dataframe(access,timefmt='ET') # Load as dataframe
@@ -542,17 +576,33 @@ def compute_tracking_stats(df,scenario_duration):
     
     return results
 
-def compute_optical_detectability(dfvis_ssr):
+def compute_optical_detectability(df):
+    '''
+    Compute the optical detectability score
+
+    Parameters
+    ----------
+    df : Pandas Dataframe
+        Dataframe containing visible access intervals for the SSR network.
+
+    Returns
+    -------
+    results : TYPE
+        DESCRIPTION.
+    best_station : str
+        Station with the longest access used for metric computation.
+
+    '''
     
     # Find station with largest total access.
-    dfgroup = dfvis_ssr[['Station','Duration']].groupby(['Station']).sum()
+    dfgroup = df[['Station','Duration']].groupby(['Station']).sum()
     best_station = dfgroup['Duration'].idxmax()
     print("\nComputing optical Detectability", flush=True)
     print("--------------------------------", flush=True)
     print("Station with best access: {}".format(best_station), flush=True)
     
     # Extract access for that station
-    df = dfvis_ssr[dfvis_ssr['Station'] == best_station]
+    df = df[df['Station'] == best_station]
     
     # Create time vector sampling all access periods
     step = 10 # Timestep (s)
@@ -567,7 +617,7 @@ def compute_optical_detectability(dfvis_ssr):
     dftopo = get_ephem_TOPO(et,groundstations=[best_station])
     dftopo = dftopo[0] # Select first station
     # Get visible access for this station
-    dfa = dfvis_ssr[dfvis_ssr.Station == best_station]
+    dfa = df[df.Station == best_station]
     
     # Compute visual magnitude
     Rsat = 1 # Radius of satellite (m)
@@ -638,6 +688,96 @@ def compute_optical_detectability(dfvis_ssr):
                           ) # Sky plot of overpasses.
     
     return results, best_station
+
+def compute_radar_detectability(dflos_ssrd, rcs):
+    
+    # Find station with largest total access.
+    dfgroup = dflos_ssrd[['Station','Duration']].groupby(['Station']).sum()
+    best_station = dfgroup['Duration'].idxmax()
+    print("\nComputing Radar Detectability", flush=True)
+    print("-------------------------------", flush=True)
+    print("Station with best access: {}".format(best_station), flush=True)
+    
+    # Extract access for that station
+    df = dflos_ssrd[dflos_ssrd['Station'] == best_station]
+    
+    # Create time vector sampling all access periods
+    step = 10 # Timestep (s)
+    et = [] # Empty array
+    for ind,row in df.iterrows():
+        et_new = np.arange(row['Start']-2*step,row['Stop']+2*step,step)
+        et += list(et_new)
+    et = np.array(et) # Convert to numpy array
+    et = np.sort(np.unique(et))  # Sort array and remove duplicates
+    
+    # Get Topocentric ephemeris relative to this station at these times
+    dftopo = get_ephem_TOPO(et,groundstations=[best_station])
+    dftopo = dftopo[0] # Select first station
+    # Get visible access for this station
+    dfa = dflos_ssrd[dflos_ssrd.Station == best_station]
+    
+    # Compute link budget to get SNR
+    
+    # Inputs
+    Pt = 10*np.log10(10E6) # Transmit power (dBW) 70 dBW (computed from 10 MW) ref [1]
+    Gt = 36.39 # Transmitter gain (dBi) [2] From MATLAB script
+    Gr = 0 # Receiver gain (dBi) ref [3] LNAGain = 1 (== 0 dB)
+    f = 0.45 # Carrier frequency (GHz) (450 MHz) ref [1]
+    # rcs (m^2) (input variable)
+    Ts = 290 # System temperature ref[3]  ConstantNoiseTemp = 290 K
+    tp = 1E-07 # Pulse width (s) ref [3]  PulseWidth = 1e-07 sec
+    R = dftopo['Sat.R'].to_numpy() # Groundstation to Sat Range (km) (from geometry)
+    L = 0 # Additional losses (dBW) TODO 
+    # References
+    # [1] Riley's Thesis
+    # [2] MATLAB script Radar_array.m uses Phased Array toolbox
+    # [3] STK Radar1.rd file
+    
+    # Compute received power, noise, single-pulse SNR at time steps
+    Pr, Np, SNR1 = compute_link_budget(Pt,Gt,Gt,f,R,rcs,Ts,tp,L)
+    
+    # Use SNR1 to compute Probability of Detection
+    pfa = 0.0001 # Probability of false alarm ref [3]
+    PD = compute_probability_of_detection(SNR1,pfa=pfa)
+    
+    # Find max probability
+    max_PD = np.nanmax(PD)
+    
+    
+    # Add to dataframe
+    dftopo.insert(len(dftopo.columns),'Pr',list(Pr))
+    dftopo.insert(len(dftopo.columns),'Np',list(Np*np.ones(len(dftopo))))
+    dftopo.insert(len(dftopo.columns),'SNR1',list(SNR1))
+    dftopo.insert(len(dftopo.columns),'PD',list(PD))
+    
+    # Radar detectability Scoring Criteria
+    # See Table 7 of R Steindl thesis.
+    if max_PD < 0.5:
+        radar_detectability_tier = 'Difficult to Track'
+        radar_detectability_score = 0
+    elif 0.5 <= max_PD < 0.75:
+        radar_detectability_tier = "Detectable"
+        radar_detectability_score = 0.5
+    elif max_PD >= 0.75:
+        radar_detectability_tier = "More Detectable"
+        radar_detectability_score = 1.0
+    
+    results = pd.DataFrame(columns=['Metric','Value','Tier','Score'])
+    radar_detect_row = {'Metric': 'Max Pd', 'Value': max_PD, 'Tier': radar_detectability_tier, 'Score': radar_detectability_score}
+    results = results.append(radar_detect_row, ignore_index=True)
+    
+    # TODO: Generate plot
+    out_dir = get_data_home()/'DITdata'
+    plot_linkbudget(dftopo, filename = str(out_dir/"RadarDetectability.html"),
+                    title="Radar Detectability Station {}".format(best_station)) # Plot of the satellite el,range,SNR1,Pd
+    
+    plot_overpass_skyplot(dftopo, dfa,
+                          filename = str(out_dir/"RadarDetectabilitySkyplot.html"),
+                          title="Overpasses Station {}".format(best_station)
+                          ) # Sky plot of overpasses.
+
+    return results, best_station
+
 
 #%% Notes on access
 

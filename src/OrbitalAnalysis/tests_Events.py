@@ -148,9 +148,10 @@ def test_access():
     
     # Compute satellite lighting intervals
     satlight, satpartial, satdark = find_sat_lighting(start_et,stop_et)
+    satlight1 = spice.wnunid(satlight,satpartial) # Full or partial light
     
     # Compute visible (constrained) access intervals
-    access = constrain_access_by_lighting(los_access,gslight,satdark)
+    access = constrain_access_by_lighting(los_access,gsdark,satlight1)
     dfaccess = window_to_dataframe(access)
     
     # Print results

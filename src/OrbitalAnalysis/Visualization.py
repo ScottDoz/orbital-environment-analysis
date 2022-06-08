@@ -535,6 +535,85 @@ def plot_time_windows(wins,groups,Types,
     
     return
 
+def plot_linkbudget(dftopo,filename=None,title=None):
+    ''' Plot the link budget data for a single ground station '''
+    
+    from plotly.subplots import make_subplots
+    import plotly.graph_objects as go
+    
+    start_et = dftopo.ET.min()
+    stop_et = dftopo.ET.max()
+    
+    # Copy original dataframe
+    dftopo1 = dftopo.copy()
+    
+    # Insert blank line between time gaps
+    et = dftopo.ET.to_numpy() # Extract ephemeris time
+    ind = np.where(np.diff(et)>100.)[0]
+    df_new = pd.DataFrame(index=ind + 0.5) # New dataframe at half integer indices
+    dftopo = pd.concat([dftopo, df_new]).sort_index()
+    
+    # Generate a subplot
+    fig = make_subplots(rows=4, cols=1, shared_xaxes=True)
+    
+    # First trace. Solar and Sat Elevation.
+    fig.add_trace(
+        go.Scatter(x=dftopo.ET, y= np.rad2deg(dftopo['Sun.El']),
+                   mode='lines',name='Sun.El',legendgroup = '1' ),
+        row=1, col=1
+    )
+    fig.add_trace(
+        go.Scatter(x=dftopo.ET, y= np.rad2deg(dftopo['Sat.El']),
+                   mode='lines',name='Sat.El',legendgroup = '1' ),
+        row=1, col=1
+    )
+    
+    # Second trace. Sat Range.
+    fig.add_trace(
+        go.Scatter(x=dftopo.ET, y=dftopo['Sat.R'],
+                   mode='lines',name='Sat.Range',legendgroup = '2' ),
+        row=2, col=1
+    )
+    
+    # Third trace. SNR1.
+    fig.add_trace(
+        go.Scatter(x=dftopo.ET, y=dftopo['SNR1'],
+                   mode='lines',name='SNR1',legendgroup = '3' ),
+        row=3, col=1
+    )
+    
+    # Fourth trace. Pd.
+    fig.add_trace(
+        go.Scatter(x=dftopo.ET, y=dftopo['PD'],
+                   mode='lines',name='Pd',legendgroup = '4' ),
+        row=4, col=1
+    )
+    
+    # Update yaxis properties
+    fig.update_xaxes(title_text="Epoch (ET)", row=4, col=1)
+    # Update yaxis properties
+    fig.update_yaxes(title_text="Elevation (deg)", row=1, col=1)
+    fig.update_yaxes(title_text="Range (km)", row=2, col=1)
+    fig.update_yaxes(title_text="SNR1 (dB)", row=3, col=1)
+    fig.update_yaxes(title_text="Pd", row=4, col=1)
+    # Add gap in legend groups
+    fig.update_layout(legend_tracegroupgap = 300)
+    # Update title
+    fig.update_layout(title_text=title)
+    
+    # Render
+    if filename is None:
+        filename = 'temp-plot.html'
+    plotly.offline.plot(fig, filename = str(filename), validate=False)
+    
+    # Reset topo
+    dftopo = dftopo1
+    
+    return
+    
+    
+
+
 def plot_visibility(dftopo,filename=None,title=None):
     ''' Plot the visibility data for a single ground station '''
     

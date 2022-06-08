@@ -184,8 +184,10 @@ def find_station_lighting(start_et,stop_et,station='DSS-43',method='ref_el', ref
     ----------
     start_et, stop_et : float
         Start and stop times of the window of interest (Ephemeris Time).
-    station : TYPE, optional
-        DESCRIPTION. The default is 'DSS-43'.
+    station : str, optional
+        Name of the ground station. The default is 'DSS-43'.
+    method : str
+        Method for comulting the lighting conditions.
     ref_el : float, optional
         Reference elevation of sun to distinguish between light and dark.
 
@@ -257,7 +259,8 @@ def find_station_lighting(start_et,stop_et,station='DSS-43',method='ref_el', ref
         # Find when the solar elevation is < -6 deg
         targ = "SUN" # Target
         frame  = station+"_TOPO" # Reference frame
-        abcorr = "NONE" # Aberration correction flag
+        # abcorr = "NONE" # Aberration correction flag
+        abcorr = "lt"
         obsrvr = station # Observer
         crdsys = "LATITUDINAL" # Coordinate system
         coord  = "LATITUDE" # Coordinate of interest
@@ -270,9 +273,17 @@ def find_station_lighting(start_et,stop_et,station='DSS-43',method='ref_el', ref
         dark = spice.cell_double(2*MAXWIN) # Initialize result
         dark = spice.gfposc(targ,frame,abcorr,obsrvr,crdsys,coord,relate,
                          refval,adjust,step,MAXWIN,cnfine,dark)
+        
+        # Find lit times
+        # This is the complement of the dark time intervals, constrained by the 
+        # original window. Use the SPICE wncomd_c function.
+        # https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/cspice/wncomd_c.html
+        light = spice.wncomd(start_et,stop_et,dark)
+        
     
-    elif method == 'eclipse':
+    elif method == 'full eclipse':
         # Find dark times based on occultation/eclipse of Sun by Earth.
+        # Dark = full eclipse
         
         # Find ocultations of the Sun by Earth as seen from the Groundstation
         # Target: Sun
@@ -280,7 +291,7 @@ def find_station_lighting(start_et,stop_et,station='DSS-43',method='ref_el', ref
         # Occulting body: Earth
         
         # Occultation geometry search settings
-        occtyp = "ANY"  # Type of occultation (Full,Annular,Partial,Any)
+        occtyp = "FULL"  # Type of occultation (Full,Annular,Partial,Any)
         front = "EARTH" # Name of occulting body
         fshape = "ELLIPSOID" # Type of shape model for front body (POINT, ELLIPSOID, DSK/UNPRIORITIZED)
         fframe = "ITRF93" #"IAU_EARTH" # # Body-fixed frame of front body
@@ -296,18 +307,75 @@ def find_station_lighting(start_et,stop_et,station='DSS-43',method='ref_el', ref
         
         # Full occulation (dark or umbra)
         dark = spice.cell_double(2*MAXWIN) # Initialize result
-        dark = spice.gfoclt ( "FULL",
+        dark = spice.gfoclt ( occtyp,
                               front,   fshape,  fframe,
                               back,    bshape,  bframe,
                               abcorr,  obsrvr,  step,
                               cnfine, dark          )
         
+        # Find lit times
+        # This is the complement of the dark time intervals, constrained by the 
+        # original window. Use the SPICE wncomd_c function.
+        # https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/cspice/wncomd_c.html
+        light = spice.wncomd(start_et,stop_et,dark)
+
+    elif method == 'eclipse':
+        # Find dark times based on occultation/eclipse of Sun by Earth.
+        # Dark = full or partial eclipse
+        
+        # Find ocultations of the Sun by Earth as seen from the Groundstation
+        # Target: Sun
+        # Observer: GS
+        # Occulting body: Earth
+        
+        # Occultation geometry search settings
+        occtyp = "ANY"  # Type of occultation (Full,Annular,Partial,Any)
+        front = "EARTH" # Name of occulting body
+        fshape = "ELLIPSOID" # Type of shape model for front body (POINT, ELLIPSOID, DSK/UNPRIORITIZED)
+        fframe = "ITRF93" #"IAU_EARTH" # # Body-fixed frame of front body
+        back =  "SUN" # Name of occulted body
+        bshape = "ELLIPSOID" # Type of shape model for back body
+        bframe = "IAU_SUN" # Body-fixed frame of back body (empty)
+        abcorr = "NONE" # Aberration correction flag
+        # abcorr = "lt"
+        obsrvr = station  # Observer
+        step = 5. # Step size (s)
+        
+        # Find occulations
+        
+        # Full occulation (dark or umbra)
+        full = spice.cell_double(2*MAXWIN) # Initialize result
+        full = spice.gfoclt ( occtyp,
+                              front,   fshape,  fframe,
+                              back,    bshape,  bframe,
+                              abcorr,  obsrvr,  step,
+                              cnfine, full          )
+        
+        # Full occulation (dark or umbra)
+        partial = spice.cell_double(2*MAXWIN) # Initialize result
+        partial = spice.gfoclt ( "PARTIAL",
+                              front,   fshape,  fframe,
+                              back,    bshape,  bframe,
+                              abcorr,  obsrvr,  step,
+                              cnfine, partial          )
+        
+        
+        # Full occulation (dark or umbra)
+        dark = spice.cell_double(2*MAXWIN) # Initialize result
+        dark = spice.gfoclt ( occtyp,
+                              front,   fshape,  fframe,
+                              back,    bshape,  bframe,
+                              abcorr,  obsrvr,  step,
+                              cnfine, dark          )
+        
+        
     
-    # Find lit times
-    # This is the complement of the dark time intervals, constrained by the 
-    # original window. Use the SPICE wncomd_c function.
-    # https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/cspice/wncomd_c.html
-    light = spice.wncomd(start_et,stop_et,dark)
+        # Find lit times
+        # This is the complement of the dark time intervals, constrained by the 
+        # original window. Use the SPICE wncomd_c function.
+        # https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/cspice/wncomd_c.html
+        light = spice.wncomd(start_et,stop_et,full) # Complement of full eclipse times
+        light = spice.wndifd(light,partial) # Remove partial eclipse times
     
     
     # TODO: Bin data based on Sun.El ranges
@@ -407,7 +475,7 @@ def find_access(start_et,stop_et,station='DSS-43',min_el=0.):
     refval = min_el*spice.rpd() # Reference value
     relate = ">"            # Relational operator 
     adjust = 0. # Adjustment value for absolute extrema searches
-    step = 10. # Step size (1 hrs)
+    step = 5. #10. # Step size (10 s)
     
     # Call the function to find full, anular and partial
     access = spice.cell_double(2*MAXWIN) # Initialize result
@@ -416,7 +484,49 @@ def find_access(start_et,stop_et,station='DSS-43',min_el=0.):
     
     return access
 
-def constrain_access_by_lighting(access,gslight,satdark):
+def constrain_access_by_lighting(access,gsdark,satlight):
+    '''
+    Constrain the line-of-sight access intervals by the lighting conditions of
+    the satellite and groundstation. Use SPICE window logical set functions to
+    find intervals when there is access, the station is in darkness, and the 
+    satellite is in sunlight.
+    
+    Visaccess = access ∩ (gsdark ∩ satlight)
+    
+    See pg 10 of SPICE Tutorial on Window Operations
+    https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/Tutorials/pdf/individual_docs/29_geometry_finder.pdf
+    
+
+    Parameters
+    ----------
+    access : SpiceCell
+        Time intervals for line-of-sight access from station to satellite.
+    gsdark : TYPE
+        Time intervals for darkness of the station.
+    satlight : TYPE
+        Time intervals for sunlight of the satellite.
+
+    Returns
+    -------
+    visaccess : TYPE
+        Constrained time intervals for visible access from station to satellite.
+
+    '''
+    
+    # # Use spice window functions to compute the set differences
+    # # visaccess = access - gslight -satdark
+    # A1 = spice.wnintd(gsdark,satlight) # GS dark and sat light
+    # visaccess = spice.wnintd(access,A1) # GS dark and sat light and LOS
+    
+    # Incremental test
+    # LOS and sat light
+    visaccess = spice.wnintd(access,satlight)  # LOS and Sat light
+    visaccess = spice.wnintd(visaccess,gsdark) # LOS and Sat light and GS dark 
+    
+    
+    return visaccess
+
+def old_constrain_access_by_lighting(access,gslight,satdark):
     '''
     Constrain the line-of-sight access intervals by the lighting conditions of
     the satellite and groundstation. Use SPICE window logical set functions to
