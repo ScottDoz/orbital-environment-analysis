@@ -38,16 +38,36 @@ def test_run_analysis():
     5. Compute radar trackability metrics.
     6. Compute optical detectability metrics.
     '''
+    rE = 6371. # Radius of Earth (km)
     
     # INPUTS
     # NORAD = 25544 # NORAD ID of satellite e.g. 25544 for ISS
     start_date = '2020-10-26 16:00:00.000' # Start Date e.g. '2020-10-26 16:00:00.000'
     stop_date =  '2020-11-25 15:59:59.999' # Stop Date e.g.  '2020-11-25 15:59:59.999'
     step = 10. # Time step (sec)
+    # Satellite-Maya Example
+    # sat_dict = {"DateFormat": "UTCGregorian", "Epoch": '26 Oct 2020 16:00:00.000',
+    #             "SMA": 6963.0, "ECC": 0.0188, "INC": 97.60,
+    #             "RAAN": 308.90, "AOP": 81.20, "TA": 0.00,
+    #             "rcs": 0.55}
+    
+    # # Steller Outer Shell Rating
+    # sat_dict = {"DateFormat": "UTCGregorian", "Epoch": '26 Oct 2020 16:00:00.000',
+    #             "SMA": 1000+rE, "ECC": 0.0, "INC": 60.00,
+    #             "RAAN": 0.0, "AOP": 0.0, "TA": 0.00,
+    #             "rcs": 3.3385}
+    
+    # Steller Mid Shell Rating
     sat_dict = {"DateFormat": "UTCGregorian", "Epoch": '26 Oct 2020 16:00:00.000',
-                "SMA": 6963.0, "ECC": 0.0188, "INC": 97.60,
-                "RAAN": 308.90, "AOP": 81.20, "TA": 0.00,
-                "rcs": 0.55}
+                "SMA": 925.+rE, "ECC": 0.0, "INC": 80.00,
+                "RAAN": 0.0, "AOP": 0.0, "TA": 0.00,
+                "rcs": 1.9888}
+    
+    # # Steller Inner Shell Rating
+    # sat_dict = {"DateFormat": "UTCGregorian", "Epoch": '26 Oct 2020 16:00:00.000',
+    #             "SMA": 850.+rE, "ECC": 0.0, "INC": 60.00,
+    #             "RAAN": 0.0, "AOP": 0.0, "TA": 0.00,
+    #             "rcs": 1.9888}
     
     # Run Analysis
     results = run_analysis(sat_dict,start_date,stop_date,step)
@@ -57,6 +77,87 @@ def test_run_analysis():
     # Solution: Empty kernel pool. Or restart IDE.
     
     return results
+
+#%% Plots of Optical Detectability
+
+def test_plot_visual_magnitude(station):
+    ''' 
+    Get the ephemerides of the satellite and sun in the ground station 
+    Topocentric frame.
+    '''
+    
+    # Generate ephemeris times
+    # step = 10.
+    # step = 5.
+    # et = generate_et_vectors_from_GMAT_coverage(step, exclude_ends=True)
+    start_date = '2020-10-26 16:00:00.000' # Start Date e.g. '2020-10-26 16:00:00.000'
+    stop_date =  '2020-11-25 15:59:59.999' # Stop Date e.g.  '2020-11-25 15:59:59.999'
+    
+    # Convert start and stop dates to Ephemeris Time
+    step = 5.
+    kernel_dir = get_data_home() / 'Kernels'
+    spice.furnsh( str(kernel_dir/'naif0012.tls') ) # Leap second kernel
+    start_et = spice.str2et(start_date)
+    stop_et = spice.str2et(stop_date)
+    scenario_duration = stop_et - start_et # Length of scenario (s)
+    
+    # # Generate ephemeris times
+    # et = np.arange(start_et,stop_et,10); et = np.append(et,stop_et)
+    
+    # 2. Compute satellite lighting intervals
+    print('\nComputing Satellite Lighting intervals', flush=True)
+    satlight, satpartial, satdark = find_sat_lighting(start_et,stop_et)
+    satlight1 = spice.wnunid(satlight,satpartial) # Full or partial light
+    
+    # 3. Compute SSR and SSRD Station Lighting and access
+    # SSR: use min_el = 30 deg (120 deg cone angle from zenith)
+    # SSRD: use min_el = 5 deg (since targeted at satellite)
+    # dflos_ssr, dfvis_ssr, dfcomblos_ssr, dfcombvis_ssr = compute_station_access('SSR',start_et,stop_et,satlight1,30.,save=True)
+    dflos_ssrd, dfvis_ssrd, dfcomblos_ssrd, dfcombvis_ssrd = compute_station_access('SSRD',start_et,stop_et,satlight1,5.,save=True)
+    
+    # Extract access for station of interest
+    df = dfvis_ssrd[dfvis_ssrd['Station'] == station]
+    
+    # Create time vector sampling all access periods
+    step = 10 # Timestep (s)
+    et = [] # Empty array
+    for ind,row in df.iterrows():
+        et_new = np.arange(row['Start']-2*step,row['Stop']+2*step,step)
+        et += list(et_new)
+    et = np.array(et) # Convert to numpy array
+    et = np.sort(np.unique(et))  # Sort array and remove duplicates
+    
+    # Get Topocentric ephemeris relative to this station at these times
+    dftopo = get_ephem_TOPO(et,groundstations=[station])
+    dftopo = dftopo[0] # Select first station
+    # Get visible access for this station
+    dfa = df[df.Station == station]
+    
+    # Satellite radius
+    # Outer: 1.6x1.0x0.7m = 1.12m^3 -> Rmean = (Vol*3/(4*pi))^(1/3) = 0.644
+    # From area r = sqrt(A/pi) = 0.713 m
+    Rsat = 0.713 # Outer shell sat
+    
+    # Compute visual magnitude
+    p = 0.175 # Albedo (17.5%)
+    msat = compute_visual_magnitude(dftopo,Rsat,p=p,k=0.12) # With airmass
+    msat2 = compute_visual_magnitude(dftopo,Rsat,p=p,k=0.12,include_airmass=False) # Without airmass
+    # Add to dataframe
+    dftopo.insert(len(dftopo.columns),'Vmag',list(msat))
+    dftopo.insert(len(dftopo.columns),'Vmag2',list(msat2))
+    # Save to file
+    out_dir = get_data_home()/'DITdata'
+    filename = out_dir/'BestAccess.csv'
+    dftopo.to_csv(str(out_dir/filename),index=False)
+    
+    # Plot results
+    out_dir = get_data_home()/'DITdata'
+    plot_visibility(dftopo,
+                    title="Optical Detectability Station {}".format(station))
+    
+    
+    return dftopo
+
 
 
 #%% Ephemerides
@@ -85,12 +186,26 @@ def test_get_ephem_TOPO():
     '''
     
     # Generate ephemeris times
-    step = 10.
+    # step = 10.
     # step = 5.
-    et = generate_et_vectors_from_GMAT_coverage(step, exclude_ends=True)
+    # et = generate_et_vectors_from_GMAT_coverage(step, exclude_ends=True)
+    start_date = '2020-10-26 16:00:00.000' # Start Date e.g. '2020-10-26 16:00:00.000'
+    stop_date =  '2020-11-25 15:59:59.999' # Stop Date e.g.  '2020-11-25 15:59:59.999'
+    
+    # Convert start and stop dates to Ephemeris Time
+    step = 5.
+    kernel_dir = get_data_home() / 'Kernels'
+    spice.furnsh( str(kernel_dir/'naif0012.tls') ) # Leap second kernel
+    start_et = spice.str2et(start_date)
+    stop_et = spice.str2et(stop_date)
+    scenario_duration = stop_et - start_et # Length of scenario (s)
+    
+    # Generate ephemeris times
+    et = np.arange(start_et,stop_et,10); et = np.append(et,stop_et)
     
     # Get Topocentric observations
-    dftopo = get_ephem_TOPO(et)[0]
+    
+    dftopo = get_ephem_TOPO(et,groundstations=['SSRD-5'])[0]
     
     return dftopo
 
