@@ -10,8 +10,8 @@
 % Beamformer Mvdr.
 M = 66;   % Number of elements on each row
 N = 66;   % Number of elements on each column
-dy = 0.7505; % Spacing between elements on each row (m)
-dz = 0.7505; % Spacing between elements on each column (m)
+dy = 0.75051921; % Spacing between elements on each row (m)
+dz = 0.75051921; % Spacing between elements on each column (m)
 fc = 0.45e9; % Frequency (Hz)
 ura = phased.URA([N M],[dz dy]);
 

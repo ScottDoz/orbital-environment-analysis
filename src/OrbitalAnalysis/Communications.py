@@ -14,6 +14,7 @@ Compute the link budget between a ground station and satellite.
 """
 
 import numpy as np
+import pandas as pd
 
 import pdb
 
@@ -306,6 +307,62 @@ def compute_probability_of_detection(SNR1,pfa=1e-4):
     
     
     return PD
+
+#%% Phased Array Design
+
+def get_array_geometry():
+    '''
+    Read the positions of the array elements from the STK Radar1.rd file.
+    
+    The contains *** elements, spaced over 32x32
+
+    '''
+    
+    # Radar1.rd contains the X,Y positions of elements.
+    # Each block is 14 lines long. Starting block at line 147. Example:
+    # <SCOPE>
+    #     <VAR name = "X">
+    #         <REAL>-24.39187446136487</REAL>
+    #     </VAR>
+    #     <VAR name = "Y">
+    #         <REAL>-24.39187446136487</REAL>
+    #     </VAR>
+    #     <VAR name = "Id">
+    #         <INT>0</INT>
+    #     </VAR>
+    #     <VAR name = "Enabled">
+    #         <BOOL>false</BOOL>
+    #     </VAR>
+    # </SCOPE>
+    
+    
+    # Read file into dataframe
+    df = pd.read_csv('Radar1.rd',header=None)
+    n_rows = len(df)
+    
+    # Extract X values starting at line 149 to 61119 (indices 146)
+    ind_list = np.arange(146,61116+14,14)
+    dfx = df.iloc[ind_list]
+    x = dfx[0].str.extract(r'([-+]?\d+.\d+)').astype('float').to_numpy().T[0] # Extract numbers
+        
+    # Extract Y values starting at line 152 to 61122
+    ind_list = np.arange(149,61119+14,14)
+    dfy = df.iloc[ind_list]
+    y = dfy[0].str.extract(r'([-+]?\d+.\d+)').astype('float').to_numpy().T[0] # Extract numbers
+      
+        # Extract Ind values starting at line 155
+    ind_list = np.arange(152,61122+14,14)
+    dfind = df.iloc[ind_list]
+    ind = dfind[0].str.extract(r'(\d+)').astype(int).to_numpy().T[0] # Extract numbers
+    
+    # Reproduce without reading 
+    x1 = np.repeat(np.linspace(-24.39187446,24.39187446,66),66)
+    y1 = np.tile(np.linspace(-24.39187446,24.39187446,66),66)
+
+    # Create dataframe
+    df = pd.DataFrame({'ID':ind,'x':list(x),'y':list(y)})
+    
+    return df
 
 #%% Decibel Conversions
  

@@ -109,6 +109,7 @@ def run_analysis(sat_dict,start_date,stop_date,step):
     # 6. Optical Detectability
     optical_detectability_results, best_station_opt_det = compute_optical_detectability(dfvis_ssrd)
     opt_detect_score = optical_detectability_results['Score'].iloc[0]
+
     
     # 7. Radar Detectability
     rcs = sat_dict['rcs'] # Extract RCS (m^2)
@@ -349,7 +350,7 @@ def compute_station_access(network,start_et,stop_et,satlight, min_el, save=False
     elif network == 'SSRD':
         # SSRD Network contains 7 stations
         stations = ['SSRD-'+str(i+1) for i in range(7)]
-        
+    
     # Define a working folder to output the data
     out_dir = get_data_home()/'DITdata'
     
@@ -419,24 +420,24 @@ def compute_station_access(network,start_et,stop_et,satlight, min_el, save=False
             t = Time(dt, format='datetime', scale='utc') # Astropy Time object
             t_iso = t.iso # Times in iso
             dflos_i['Stop'] = pd.to_datetime(t_iso)
-            # Add rows for global statistics (min,max,mean,total)
-            # Minimum vals
-            min_row = dflos_i.iloc[dflos_i['Duration'].idxmin()].to_dict()
-            min_row['Station'] = 'Min Duration' # Change label
-            dflos_i = dflos_i.append(min_row, ignore_index=True)
-            # Maximum Duration vals
-            max_row = dflos_i.iloc[dflos_i['Duration'].idxmax()].to_dict()
-            max_row['Station'] = 'Max Duration' # Change label
-            dflos_i = dflos_i.append(max_row, ignore_index=True)
-            # Maximum Duration vals
-            mean_row = {'Station':'Mean Duration','Duration':dflos_i['Duration'].mean()}
-            dflos_i = dflos_i.append(mean_row, ignore_index=True)
-            # Insert empty row
-            ind = np.where(dflos_i['Station']=='Min Duration')[0]
-            df_new = pd.DataFrame(index=ind -1. + 0.5) # New dataframe at half integer indices
-            dflos_i = pd.concat([dflos_i, df_new]).sort_index().reset_index(drop=True)
-            dflos_i['Access'] = pd.to_numeric(dflos_i['Access'], errors = 'coerce').astype(pd.Int32Dtype())
-            
+            if len(dfvis_i)>0:
+                # Add rows for global statistics (min,max,mean,total)
+                # Minimum vals
+                min_row = dflos_i.iloc[dflos_i['Duration'].idxmin()].to_dict()
+                min_row['Station'] = 'Min Duration' # Change label
+                dflos_i = dflos_i.append(min_row, ignore_index=True)
+                # Maximum Duration vals
+                max_row = dflos_i.iloc[dflos_i['Duration'].idxmax()].to_dict()
+                max_row['Station'] = 'Max Duration' # Change label
+                dflos_i = dflos_i.append(max_row, ignore_index=True)
+                # Maximum Duration vals
+                mean_row = {'Station':'Mean Duration','Duration':dflos_i['Duration'].mean()}
+                dflos_i = dflos_i.append(mean_row, ignore_index=True)
+                # Insert empty row
+                ind = np.where(dflos_i['Station']=='Min Duration')[0]
+                df_new = pd.DataFrame(index=ind -1. + 0.5) # New dataframe at half integer indices
+                dflos_i = pd.concat([dflos_i, df_new]).sort_index().reset_index(drop=True)
+                dflos_i['Access'] = pd.to_numeric(dflos_i['Access'], errors = 'coerce').astype(pd.Int32Dtype())
             # Save access data to file
             filename = gs + "_los_access_intervals.csv"
             dflos_i.to_csv(str(out_dir/filename),index=False)
@@ -458,23 +459,24 @@ def compute_station_access(network,start_et,stop_et,satlight, min_el, save=False
             t = Time(dt, format='datetime', scale='utc') # Astropy Time object
             t_iso = t.iso # Times in iso
             dfvis_i['Stop'] = pd.to_datetime(t_iso)
-            # Add rows for global statistics (min,max,mean,total)
-            # Minimum vals
-            min_row = dfvis_i.iloc[dfvis_i['Duration'].idxmin()].to_dict()
-            min_row['Station'] = 'Min Duration' # Change label
-            dfvis_i = dfvis_i.append(min_row, ignore_index=True)
-            # Maximum Duration vals
-            max_row = dfvis_i.iloc[dfvis_i['Duration'].idxmax()].to_dict()
-            max_row['Station'] = 'Max Duration' # Change label
-            dfvis_i = dfvis_i.append(max_row, ignore_index=True)
-            # Maximum Duration vals
-            mean_row = {'Station':'Mean Duration','Duration':dfvis_i['Duration'].mean()}
-            dfvis_i = dfvis_i.append(mean_row, ignore_index=True)
-            # Insert empty row
-            ind = np.where(dfvis_i['Station']=='Min Duration')[0]
-            df_new = pd.DataFrame(index=ind -1. + 0.5) # New dataframe at half integer indices
-            dfvis_i = pd.concat([dfvis_i, df_new]).sort_index().reset_index(drop=True)
-            dfvis_i['Access'] = pd.to_numeric(dfvis_i['Access'], errors = 'coerce').astype(pd.Int32Dtype())
+            if len(dfvis_i)>0:
+                # Add rows for global statistics (min,max,mean,total)
+                # Minimum vals
+                min_row = dfvis_i.iloc[dfvis_i['Duration'].idxmin()].to_dict()
+                min_row['Station'] = 'Min Duration' # Change label
+                dfvis_i = dfvis_i.append(min_row, ignore_index=True)
+                # Maximum Duration vals
+                max_row = dfvis_i.iloc[dfvis_i['Duration'].idxmax()].to_dict()
+                max_row['Station'] = 'Max Duration' # Change label
+                dfvis_i = dfvis_i.append(max_row, ignore_index=True)
+                # Maximum Duration vals
+                mean_row = {'Station':'Mean Duration','Duration':dfvis_i['Duration'].mean()}
+                dfvis_i = dfvis_i.append(mean_row, ignore_index=True)
+                # Insert empty row
+                ind = np.where(dfvis_i['Station']=='Min Duration')[0]
+                df_new = pd.DataFrame(index=ind -1. + 0.5) # New dataframe at half integer indices
+                dfvis_i = pd.concat([dfvis_i, df_new]).sort_index().reset_index(drop=True)
+                dfvis_i['Access'] = pd.to_numeric(dfvis_i['Access'], errors = 'coerce').astype(pd.Int32Dtype())
             # Save access data to file
             filename = gs + "_vis_access_intervals.csv"
             dfvis_i.to_csv(str(out_dir/filename),index=False)
@@ -597,6 +599,7 @@ def compute_optical_detectability(df):
     # Find station with largest total access.
     dfgroup = df[['Station','Duration']].groupby(['Station']).sum()
     best_station = dfgroup['Duration'].idxmax()
+    # best_station = 'SSRD-' # Hardcoded
     print("\nComputing optical Detectability", flush=True)
     print("--------------------------------", flush=True)
     print("Station with best access: {}".format(best_station), flush=True)
@@ -686,6 +689,7 @@ def compute_optical_detectability(df):
                           filename = str(out_dir/"OpticalDetectabilitySkyplot.html"),
                           title="Visible Overpasses Station {}".format(best_station)
                           ) # Sky plot of overpasses.
+    
     
     return results, best_station
 
