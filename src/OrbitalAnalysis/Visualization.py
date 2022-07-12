@@ -647,31 +647,31 @@ def plot_visibility(dftopo,filename=None,title=None):
     
     # First trace. Solar and Sat Elevation.
     fig.add_trace(
-        go.Scatter(x=dftopo.ET, y= np.rad2deg(dftopo['Sun.El']),
+        go.Scatter(x=dftopo.UTCG, y= np.rad2deg(dftopo['Sun.El']),
                    mode='lines',name='Sun.El',legendgroup = '1' ),
         row=1, col=1
     )
     fig.add_trace(
-        go.Scatter(x=dftopo.ET, y= np.rad2deg(dftopo['Sat.El']),
+        go.Scatter(x=dftopo.UTCG, y= np.rad2deg(dftopo['Sat.El']),
                    mode='lines',name='Sat.El',legendgroup = '1' ),
         row=1, col=1
     )
     
     # Second trace. Sat Range.
     fig.add_trace(
-        go.Scatter(x=dftopo.ET, y=dftopo['Sat.R'],
+        go.Scatter(x=dftopo.UTCG, y=dftopo['Sat.R'],
                    mode='lines',name='Sat.Range',legendgroup = '2' ),
         row=2, col=1
     )
     
     # Third trace. Visual Magnitude.
     fig.add_trace(
-        go.Scatter(x=dftopo.ET, y=dftopo['Vmag'],
+        go.Scatter(x=dftopo.UTCG, y=dftopo['Vmag'],
                    mode='lines',name='Vmag',legendgroup = '3' ),
         row=3, col=1
     )
     fig.add_trace(
-        go.Scatter(x=dftopo.ET, y=dftopo['Vmag2'],
+        go.Scatter(x=dftopo.UTCG, y=dftopo['Vmag2'],
                    mode='lines',name='Vmag2',legendgroup = '3' ),
         row=3, col=1
     )
