@@ -369,6 +369,41 @@ class SPICEKernels:
         print('File {} saved'.format(str(fullfilename)))
         
         return
+    
+    @classmethod
+    def download_gravity_parameters_tpc(self):
+        '''
+        Download planetary gravitational data SPK files from:
+        https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck
+
+        '''
+        
+        # Check data directory
+        self._check_data_directory()
+
+        # DE440
+        url = "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/gm_de431.tpc"
+
+        # Get the request
+        print('Downloading SPK file.')
+        r = requests.get(url, allow_redirects=True)
+
+        # Get the filename
+        filename = url.split('/')[-1]
+        # filename = self._getFilename_fromCd(r.headers.get('content-disposition'))
+
+        # Set directory to save into
+        DATA_DIR = get_data_home() # Data home directory
+        _dir = DATA_DIR  / 'Kernels'
+
+        # Write the results to file
+        fullfilename = _dir / filename
+
+        open(fullfilename, 'wb').write(r.content)
+        print('File {} saved'.format(str(fullfilename)))
+
+        return
+    
 
     @classmethod
     def check_generic_kernels(self):
@@ -412,6 +447,12 @@ class SPICEKernels:
         if filename.exists() == False:
             print("Missing Geophysical constants kernel")
             SPICEKernels.download_geophysical()
+        
+        # Gravity parameters
+        filename = kernel_dir/'gm_de431.tpc'
+        if filename.exists() == False:
+            print("Missing Gravity parameterskernel")
+            SPICEKernels.download_gravity_parameters_tpc()
         
         return
 
