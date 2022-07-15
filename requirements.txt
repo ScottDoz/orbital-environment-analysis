@@ -1,7 +1,12 @@
+astropy
 sgp4
+matplotlib
 natsort
 numpy
 pandas
+scikit-learn
 spacetrack
 spiceypy
 TLE-tools
+tletools
+tqdm
