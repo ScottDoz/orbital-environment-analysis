@@ -369,8 +369,51 @@ class SPICEKernels:
         print('File {} saved'.format(str(fullfilename)))
         
         return
-    
-    
+
+    @classmethod
+    def check_generic_kernels(self):
+        ''' Check to ensure all generic kernels needed for analysis are present. '''
+        
+        # Get kernel directory
+        kernel_dir = get_data_home() / 'Kernels'
+        
+        # Check Leap second kernel
+        filename = kernel_dir/'naif0012.tls'
+        if filename.exists() == False:
+            print("Missing Leap Second Kernel")
+            SPICEKernels.download_lsk()
+        
+        # Check Planetary Constants Kernel
+        filename = kernel_dir/'pck00010.tpc'
+        if filename.exists() == False:
+            print("Missing Planetary Constants Kernel")
+            SPICEKernels.download_pck()
+        
+        # DE440 Solar System Ephemeris
+        filename = kernel_dir/'de440s.bsp'
+        if filename.exists() == False:
+            print("Missing DE440s Solar System Ephemeris")
+            SPICEKernels.download_planet_spk()
+        
+        # Earth binary PCK (Jan 2000 - Jun 2022)
+        filename = kernel_dir/'earth_000101_220616_220323.bpc'
+        if filename.exists() == False:
+            print("Missing Earth Binary PCK")
+            SPICEKernels.download_earth_binary_pck()
+        
+        # Earth topocentric frame text kernel
+        filename = kernel_dir/'earth_topo_201023.tf'
+        if filename.exists() == False:
+            print("Missing Earth topocentric frame text kernel")
+            SPICEKernels.download_earth_topo_tf()
+        
+        # Geophysical constants kernel
+        filename = kernel_dir/'geophysical.ker'
+        if filename.exists() == False:
+            print("Missing Geophysical constants kernel")
+            SPICEKernels.download_geophysical()
+        
+        return
 
 #%% Ephemeris generation
 
