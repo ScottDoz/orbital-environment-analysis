@@ -415,7 +415,7 @@ def plot_2d_scatter_numeric(df,xlabel,ylabel,color,logColor=False,size=1.):
     
     return
 
-def plot_kde(df,xlabel,ylabel):
+def plot_kde(df,xlabel,ylabel,bandwidth):
     
     # Error checking
     if xlabel not in list(df.columns):
@@ -427,9 +427,9 @@ def plot_kde(df,xlabel,ylabel):
     
     # Extract data
     X = df[[xlabel,ylabel]].to_numpy()
-    Nx = 50
-    Ny = 50
-    bandwidth = 10000
+    Nx = 100
+    Ny = 100
+    # bandwidth = 10000
     xmin, xmax = (df[xlabel].min(), df[xlabel].max())
     ymin, ymax = (df[ylabel].min(), df[ylabel].max())
     Xgrid = np.vstack(map(np.ravel, np.meshgrid(np.linspace(xmin, xmax, Nx),
@@ -458,10 +458,10 @@ def plot_kde(df,xlabel,ylabel):
     plt.imshow(dens1, origin='lower', 
               # norm=LogNorm(),
               # cmap=plt.cm.binary,
-              cmap=plt.cm.hot_r,
-              extent=(xmin, xmax, ymin, ymax), )
+              cmap=plt.cm.gist_heat_r,
+              extent=(xmin, xmax, ymin, ymax),aspect = 'auto' )
     plt.colorbar(label='density')
-    ax.scatter(X[:, 0], X[:, 1], s=1, lw=0, c='k') # Add points
+    ax.scatter(X[:, 0], X[:, 1], s=1, lw=0, c='b') # Add points
     
     # Creat colorbar
     
