@@ -44,5 +44,9 @@ def get_data_home():
     # Check if directory exists and create
     if not os.path.exists(str(data_home)):
         os.makedirs(str(data_home))
+    
+    # Check if Kernels directory exists and create
+    if not os.path.exists(str(data_home/'Kernels')):
+        os.makedirs(str(data_home/'Kernels'))
 
     return data_home
