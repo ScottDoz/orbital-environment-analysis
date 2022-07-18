@@ -404,6 +404,73 @@ class SPICEKernels:
 
         return
     
+    @classmethod
+    def install_mkspk(self):
+        '''
+        Download mkspk files from:
+        https://naif.jpl.nasa.gov/pub/naif/utilities/PC_Windows_64bit/mkspk.exe
+
+        '''
+        
+        # Check data directory
+        self._check_data_directory()
+
+        # DE440
+        url = "https://naif.jpl.nasa.gov/pub/naif/utilities/PC_Windows_64bit/mkspk.exe"
+
+        # Get the request
+        print('Installing MKSPK.exe')
+        r = requests.get(url, allow_redirects=True)
+
+        # Get the filename
+        filename = url.split('/')[-1]
+        # filename = self._getFilename_fromCd(r.headers.get('content-disposition'))
+
+        # Set directory to save into
+        DATA_DIR = get_data_home() # Data home directory
+        _dir = DATA_DIR  / 'Kernels'
+
+        # Write the results to file
+        fullfilename = _dir / filename
+
+        open(fullfilename, 'wb').write(r.content)
+        print('File {} saved'.format(str(fullfilename)))
+
+        return    
+    
+    @classmethod
+    def install_pinpoint(self):
+         '''
+         Installing pinpoint from:
+         https://naif.jpl.nasa.gov/pub/naif/utilities/PC_Windows_64bit/pinpoint.exe
+    
+         '''
+         
+         # Check data directory
+         self._check_data_directory()
+    
+         # DE440
+         url = "https://naif.jpl.nasa.gov/pub/naif/utilities/PC_Windows_64bit/pinpoint.exe"
+    
+         # Get the request
+         print('Installing pinpoint.exe')
+         r = requests.get(url, allow_redirects=True)
+    
+         # Get the filename
+         filename = url.split('/')[-1]
+         # filename = self._getFilename_fromCd(r.headers.get('content-disposition'))
+    
+         # Set directory to save into
+         DATA_DIR = get_data_home() # Data home directory
+         _dir = DATA_DIR  / 'Kernels'
+    
+         # Write the results to file
+         fullfilename = _dir / filename
+    
+         open(fullfilename, 'wb').write(r.content)
+         print('File {} saved'.format(str(fullfilename)))
+    
+         return
 
     @classmethod
     def check_generic_kernels(self):
@@ -455,6 +522,9 @@ class SPICEKernels:
             SPICEKernels.download_gravity_parameters_tpc()
         
         return
+
+# TODO: Add earthstns_itrf93_201023.bsp
+# TODO: Convert pck00010.tpc to native. Need to include unix2dos in requirements: conda install -c conda-forge unix2dos
 
 #%% Ephemeris generation
 
