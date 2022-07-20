@@ -415,7 +415,7 @@ def plot_2d_scatter_numeric(df,xlabel,ylabel,color,logColor=False,size=1.):
     
     return
 
-def plot_kde(df,xlabel,ylabel,bandwidth):
+def plot_kde(df,xlabel,ylabel,bandwidth,normalized=False):
     
     # Error checking
     if xlabel not in list(df.columns):
@@ -449,7 +449,7 @@ def plot_kde(df,xlabel,ylabel,bandwidth):
         
     # Evaluate density
     from sklearn.neighbors import KernelDensity
-    kde1 = KernelDensity(bandwidth=bandwidth, kernel='gaussian')
+    kde1 = KernelDensity(bandwidth=bandwidth, kernel='tophat')
     log_dens1 = kde1.fit(X).score_samples(Xgrid)
     dens1 = X.shape[0] * np.exp(log_dens1).reshape((Ny, Nx))
     
@@ -462,7 +462,12 @@ def plot_kde(df,xlabel,ylabel,bandwidth):
               extent=(xmin, xmax, ymin, ymax),aspect = 'auto' )
     plt.colorbar(label='density')
     ax.scatter(X[:, 0], X[:, 1], s=1, lw=0, c='b') # Add points
-    
+    if normalized==False:
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
+    else:
+        plt.xlabel(xlabel + " (normalized)")
+        plt.ylabel(ylabel + " (normalized)")
     # Creat colorbar
     
 

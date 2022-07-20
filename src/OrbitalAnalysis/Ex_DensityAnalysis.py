@@ -16,7 +16,7 @@ from sklearn import preprocessing
 # from GmatScenario import *
 
 
-def density_analysis():
+def density_analysis(x,y):
 
     # Load the satellite data and compute orbital parameters
     df = load_satellites(group='all',compute_params=True)
@@ -25,7 +25,7 @@ def density_analysis():
     min_max_scaler = preprocessing.MinMaxScaler()
     params_norm = min_max_scaler.fit_transform(X)
     df[['a','e','i','om','w','h','hx','hy','hz']] = params_norm
-    plot_kde(df,'h','hz',0.1)
+    plot_kde(df,x,y,0.025,normalized=False)
     #0.1 works well
     
     return df
