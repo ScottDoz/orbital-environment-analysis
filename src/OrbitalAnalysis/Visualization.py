@@ -447,11 +447,19 @@ def plot_kde(df,xlabel,ylabel,bandwidth,normalized=False):
     # Xgrid = np.vstack(map(np.ravel, np.meshgrid(np.linspace(xmin, xmax, Nx),
     #                                         np.linspace(ymin, ymax, Ny)))).T
         
-    # Evaluate density
+    # Create and fit the model
     from sklearn.neighbors import KernelDensity
     kde1 = KernelDensity(bandwidth=bandwidth, kernel='tophat')
-    log_dens1 = kde1.fit(X).score_samples(Xgrid)
+    kde1 = kde1.fit(X)
+    # Evaluating at gridpoints
+    log_dens1 = kde1.score_samples(Xgrid)
     dens1 = X.shape[0] * np.exp(log_dens1).reshape((Ny, Nx))
+    
+    # Evaluating at satellite points
+    log_satdens = kde1.score_samples(X)
+    satdens = X.shape[0] * np.exp(log_satdens)
+    print(satdens)
+    # df['Density'] = satdens
     
     # Plot the figure
     fig, ax = plt.subplots(figsize=(8, 8))
