@@ -21,7 +21,9 @@ import pdb
 from sklearn.neighbors import KernelDensity
 
 def density_analysis(x,y):
-
+    # This still works if you want to plot a single figure.
+    # Depretiate in future???
+    
     # Load the satellite data and compute orbital parameters
     df = load_satellites(group='all',compute_params=True)
     X = df[['a','e','i','om','w','h','hx','hy','hz']].to_numpy()
@@ -35,14 +37,62 @@ def density_analysis(x,y):
     return df
 
 def run_kde_experiment(filename,plot=True):
+    '''
+    Run a batch of experiments to compute the Kernel Density Estimate (KDE) of
+    the satellite catalog under differnt kernel and bandwidth parameters.
     
-    # Load the satellite data and compute orbital parameters
-    df = load_satellites(group='all',compute_params=True)
-    X = df[['a','e','i','om','w','h','hx','hy','hz']].to_numpy()
+    Input coordinates, kernel function and bandwidth in a config csv file.
+    See example example_kde_inputs.csv in main directory of repo. 
+    Copy this file to ~/satellite_data/Data/DIT_Experiments/KDE.
+
+    Parameters
+    ----------
+    filename : TYPE
+        Name of the input config file 
+        (located in ~/satellite_data/Data/DIT_Experiments/KDE).
+        E.g. 'inputs.csv'
+    plot : Bool, optional
+        Flag to optionally plot the outputs. The default is True.
+
+    Returns
+    -------
+    df : TYPE
+        Orignial dataframe with attached density estimate results for each setting.
+
+    '''
     
     # Load experiments config file
     full_filename=get_data_home()/"DIT_Experiments"/"KDE"/filename
     df_config = pd.read_csv(full_filename)
+    
+    # Extract unique sets of coordinates used in input file
+    coord_list = list(set(list(zip(df_config.xlabel, df_config.ylabel, df_config.normalized))))
+    
+    # Load the satellite data and compute orbital parameters
+    df = load_satellites(group='all',compute_params=True)
+    
+    # Pre-process data for each set of unique coords
+    # We do this to avoid repeating data processing on settings that use the
+    # same set of coordinates.
+    # For each unique set, extract and (optionally) normalize the feature data
+    # and save it to a dictionary for lookup.
+    data_dict = {} # Dictionary to store data
+    for i in range(len(coord_list)):
+        # Extract feature data
+        xlabel = coord_list[i][0]
+        ylabel = coord_list[i][1]
+        normalized = coord_list[i][2]
+        X = df[[xlabel,ylabel]].to_numpy()
+        
+        # Normalize data
+        if normalized:
+            print('Normalizing data')
+            min_max_scaler = preprocessing.MinMaxScaler()
+            X = min_max_scaler.fit_transform(X)
+        # Store in dictionary for easy lookup
+        key = str(coord_list[i])
+        data_dict[key] = X
+        
     
     # Create figure
     if plot==True:
@@ -53,6 +103,7 @@ def run_kde_experiment(filename,plot=True):
     
     # Loop through rows and run experiment on each setting
     for index, row in df_config.iterrows():
+        
         # Extract parameters
         ExpLabel = row['ExpLabel'].strip()
         kernel = row['kernel'].strip().lower()
@@ -62,6 +113,7 @@ def run_kde_experiment(filename,plot=True):
         normalized = row['normalized']
         plt_row = row['plt_row']
         plt_col = row['plt_col']
+        
         # Error checking
         if xlabel not in list(df.columns):
             raise ValueError('xlabel not in dataset')
@@ -70,15 +122,19 @@ def run_kde_experiment(filename,plot=True):
         # if color not in list(df.columns):
         #     raise ValueError('color not in dataset')
         
-        # Extract features
-        X = df[[xlabel,ylabel]].to_numpy()
+        # Extract feature data from data_dict
+        key = str((xlabel,ylabel,normalized)) # Key in data_dict lookup table
+        X = data_dict[key] # Extract feature data
         
-        # Create grid
-        Nx = 100
-        Ny = 100
+        # Create grid to display the density plot
+        # (Hess diagram - 2d histogram)
+        Nx = row['Nx']
+        Ny = row['Ny']
         # bandwidth = 10000
-        xmin, xmax = (df[xlabel].min(), df[xlabel].max())
-        ymin, ymax = (df[ylabel].min(), df[ylabel].max())
+        # Extract limits of the image
+        xmin, xmax = (X[:,0].min(), X[:,0].max())
+        ymin, ymax = (X[:,1].min(), X[:,1].max())
+        # Create a grid of coordinates
         Xgrid = np.vstack(map(np.ravel, np.meshgrid(np.linspace(xmin, xmax, Nx),
                                                 np.linspace(ymin, ymax, Ny)))).T
         
@@ -90,36 +146,38 @@ def run_kde_experiment(filename,plot=True):
         dens1 = X.shape[0] * np.exp(log_dens1).reshape((Ny, Nx))
         # Evaluating at satellite points
         log_satdens = kde1.score_samples(X)
-        satdens = X.shape[0] * np.exp(log_satdens)
-        print(satdens)
+        satdens = X.shape[0] * np.exp(log_satdens) # FIXME: Look into normalization!!!
+        # print(satdens)
+        # Append results to the satellite dataframe
         df[ExpLabel] = satdens
         
         # Plot the figure
         if plot==True:
+            # Add subplot to figure and create new axes
             ind = rowcol_2_index(plt_row,plt_col,num_row,num_col)
-            #ax = axs[ind]
             ax = fig.add_subplot(num_row,num_col,index+1)
+            # Plot the density image with colorbar
             im = ax.imshow(dens1, origin='lower', 
                       # norm=LogNorm(),
                       # cmap=plt.cm.binary,
                       cmap=plt.cm.gist_heat_r,
                       extent=(xmin, xmax, ymin, ymax),aspect = 'auto' )
-            plt.imshow(dens1, origin='lower', 
-                      # norm=LogNorm(),
-                      # cmap=plt.cm.binary,
-                      cmap=plt.cm.gist_heat_r,
-                      extent=(xmin, xmax, ymin, ymax),aspect = 'auto' )
             plt.colorbar(im,ax=ax,label='density')
+            
+            # Plot the satellite points
             ax.scatter(X[:, 0], X[:, 1], s=1, lw=0, c='b') # Add points
+            # Add x and y labels
             if normalized==False:
                 ax.set(xlabel=xlabel, ylabel=ylabel)
             else:
                 ax.set(xlabel=xlabel, ylabel=ylabel)
-                
-            # Creat colorbar
-        plt.show()      
+             
+        # Render figure
+        plt.show()
+
     return df
 
 def rowcol_2_index(row,col,nrows,ncols):
+    ''' Convert row and columumn indices to a flat index '''
     ind = col + (row-1)*ncols-1
     return ind
