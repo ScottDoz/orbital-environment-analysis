@@ -11,6 +11,9 @@ from DistanceAnalysis import *
 from Visualization import *
 from sklearn import preprocessing
 from utils import get_data_home
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import LeaveOneOut
 # from Overpass import *
 # from Ephem import *
 # from Events import *
@@ -156,6 +159,8 @@ def run_kde_experiment(filename,plot=True):
             # Add subplot to figure and create new axes
             ind = rowcol_2_index(plt_row,plt_col,num_row,num_col)
             ax = fig.add_subplot(num_row,num_col,index+1)
+            #divider = make_axes_locatable(ax)
+            #cax = divider.append_axes("right", size="5%", pad=0.05)
             # Plot the density image with colorbar
             im = ax.imshow(dens1, origin='lower', 
                       # norm=LogNorm(),
@@ -173,6 +178,12 @@ def run_kde_experiment(filename,plot=True):
                 ax.set(xlabel=xlabel, ylabel=ylabel)
              
         # Render figure
+        plt.subplots_adjust(left=0.1,
+                    bottom=0.1, 
+                    right=0.9, 
+                    top=0.9, 
+                    wspace=0.4, 
+                    hspace=0.4)
         plt.show()
 
     return df
@@ -181,3 +192,48 @@ def rowcol_2_index(row,col,nrows,ncols):
     ''' Convert row and columumn indices to a flat index '''
     ind = col + (row-1)*ncols-1
     return ind
+
+def cross_validation(filename):
+    # Load experiments config file
+    full_filename=get_data_home()/"DIT_Experiments"/"KDE"/"CV"/filename
+    df_config = pd.read_csv(full_filename)
+    
+    # Extract parameters
+    kernel = df_config['Value'][df_config.Parameter == 'kernel'].iloc[0]
+    spacing_type = df_config['Value'][df_config.Parameter == 'spacing_type'].iloc[0]
+    bandwidth_max = float(df_config['Value'][df_config.Parameter == 'bandwidth_max'].iloc[0])
+    bandwidth_min= float(df_config['Value'][df_config.Parameter == 'bandwidth_min'].iloc[0])
+    N = int(df_config['Value'][df_config.Parameter == 'N'].iloc[0])
+    xlabel = df_config['Value'][df_config.Parameter == 'xlabel'].iloc[0]
+    ylabel = df_config['Value'][df_config.Parameter == 'ylabel'].iloc[0]
+    normalized = df_config['Value'][df_config.Parameter == 'normalized'].iloc[0]
+    
+    # Load the satellite data and compute orbital parameters
+    df = load_satellites(group='all',compute_params=True)
+    
+    # Extract data
+    X = df[[xlabel,ylabel]].to_numpy()
+    # Normalize data
+    if normalized:
+        print('Normalizing data')
+        min_max_scaler = preprocessing.MinMaxScaler()
+        X = min_max_scaler.fit_transform(X)
+    
+    # Create array of binwidth values
+    if spacing_type == 'linspace':
+        # Linearly spaced points
+        bandwidths = np.linspace(bandwidth_min,bandwidth_max,N)
+    else:
+        # TODO: Add logspace
+        pass
+    
+    # Create CV grid
+    grid = GridSearchCV(KernelDensity(kernel=kernel),
+                    {'bandwidth': bandwidths},
+                    cv=LeaveOneOut()) 
+    grid.fit(X) # Fit the data
+    # Extract results
+    opt_bandwidth = grid.best_params_['bandwidth']
+    pdb.set_trace()
+    
+    
