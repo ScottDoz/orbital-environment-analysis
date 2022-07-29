@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 from sys import platform
 import subprocess
+import shutil
 import textwrap
 from astropy.time import Time as Time
 import spiceypy as spice
@@ -27,7 +28,7 @@ from sgp4.api import Satrec
 import time
 import timeit
 
-from utils import get_data_home
+from utils import get_data_home, get_root_dir
 
 import pdb
 
@@ -198,6 +199,7 @@ class SPICEKernels:
     # earth_000101_220616_220323.bpc  Earth binary PCK (Jan 2000 - Jun 2022)
     # earth_topo_201023.tf            Earth topocentric frame text kernel
     # geophysical.ker                 Geophysical constants kernel 
+    # earthstns_itrf93_201023.bsp     Ephemerides of DSN earth stations
     
     @classmethod
     def download_lsk(self):
@@ -237,34 +239,79 @@ class SPICEKernels:
         '''
         Download Planetary Constants Kernel files from:
         https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/
-
+        
+        Alternatively, copy saved file from the data folder.
         '''
         
         # Check data directory
         self._check_data_directory()
         
-        url = "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/pck00010.tpc"
-
-        # Get the request
-        print('Downloading PCK file.')
-        r = requests.get(url, allow_redirects=True)
-
-        # Get the filename
-        filename = url.split('/')[-1]
-        # filename = self._getFilename_fromCd(r.headers.get('content-disposition'))
-
-        # Set directory to save into
-        DATA_DIR = get_data_home() # Data home directory
-        _dir = DATA_DIR  / 'Kernels'
-
-        # Write the results to file
-        fullfilename = _dir / filename
-
-        open(fullfilename, 'wb').write(r.content)
-        print('File {} saved'.format(str(fullfilename)))
+        if platform == 'win32'
+            method = 'copy'
+        else:
+            method = 'download'
         
-        # TODO: Convert LF to CR-LF
-        # unix2dos pck00010.tpc pck00010.tpc
+        
+        if method == 'copy':
+            
+            print('Copying PCK file.')
+            
+            # Copy the pck00010.tpc file included in the repo
+            root_dir = get_root_dir()
+            _dir = root_dir.parent.parent/'data' # Data directory
+            fullfilename = _dir/'pck00010.tpc'
+            
+            # Get kernel directory
+            kernel_dir = get_data_home()/'Kernels'
+            
+            # Copy file using shutil
+            shutil.copy(str(fullfilename), str(kernel_dir/'pck00010.tpc'))
+            
+            print('File {} saved'.format(str(kernel_dir/'pck00010.tpc')))
+        
+        elif method == 'download':
+            # Download the pck00010.tpc file from online.
+            # FIXME: Need to convert unix to dos.
+            # No easy solution that is robust.
+        
+            url = "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/pck00010.tpc"
+    
+            # Get the request
+            print('Downloading PCK file.')
+            r = requests.get(url, allow_redirects=True)
+    
+            # Get the filename
+            filename = url.split('/')[-1]
+            # filename = self._getFilename_fromCd(r.headers.get('content-disposition'))
+    
+            # Set directory to save into
+            DATA_DIR = get_data_home() # Data home directory
+            _dir = DATA_DIR  / 'Kernels'
+    
+            # Write the results to file
+            fullfilename = _dir / filename
+    
+            open(fullfilename, 'wb').write(r.content)
+            print('File {} saved'.format(str(fullfilename)))
+            
+            # if platform == 'win32':
+            #     # pck00010.tpc is formated for Linux. Need to convert if using windows.
+            #     # Convert LF to CR-LF
+                
+            #     # TODO: 
+                
+            #     # # Convert using unix2dos
+            #     # shdir = _dir # Directory to run from
+            #     # # cmd = 'unix2dos pck00010.tpc' # Command to execute
+            #     # cmd = 'TYPE pck00010.tpc | MORE /P >'
+            #     # # cmd = 'TYPE pck00010.tpc | MORE /P > pck00010.tpc' # Command to execute'
+            #     # result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, cwd=shdir)
+            #     # msg = result.stdout.decode("utf-8") # Error message
+            #     pass
+                
+                
+            # TODO: Convert LF to CR-LF
+            # unix2dos pck00010.tpc pck00010.tpc
         
         return
     
@@ -403,6 +450,51 @@ class SPICEKernels:
         print('File {} saved'.format(str(fullfilename)))
 
         return
+
+    @classmethod
+    def download_earthstations(self):
+        '''
+        Download ephemeris SPK files for DSN earthstations network data from:
+        https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/stations/
+
+        '''
+        
+        # Check data directory
+        self._check_data_directory()
+
+        # URL
+        url = "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/stations/earthstns_itrf93_201023.bsp"
+
+        # Get the request
+        print('Downloading SPK file.')
+        r = requests.get(url, allow_redirects=True)
+
+        # Get the filename
+        filename = url.split('/')[-1]
+        # filename = self._getFilename_fromCd(r.headers.get('content-disposition'))
+
+        # Set directory to save into
+        DATA_DIR = get_data_home() # Data home directory
+        _dir = DATA_DIR  / 'Kernels'
+
+        # Write the results to file
+        fullfilename = _dir / filename
+
+        open(fullfilename, 'wb').write(r.content)
+        print('File {} saved'.format(str(fullfilename)))
+
+        return
+    
+    # -------------------------------------------------------------------------
+    # Command line utilities
+    #
+    # SPICE command line exe files. Needed for the generation of spice kernels.
+    #
+    # Filename          Description
+    # MKSPK.exe         Creates an SPK file from a text file containing trajectory information.
+    # PINPOINT.exec     Create an SPK file and optionally, an FK file, for a set 
+    #                   of objects having fixed locations or constant velocities 
+    #                   relative to their respective centers of motion.
     
     @classmethod
     def install_mkspk(self):
@@ -518,12 +610,17 @@ class SPICEKernels:
         # Gravity parameters
         filename = kernel_dir/'gm_de431.tpc'
         if filename.exists() == False:
-            print("Missing Gravity parameterskernel")
+            print("Missing Gravity parameters kernel")
             SPICEKernels.download_gravity_parameters_tpc()
+           
+        # Earth stations
+        filename = kernel_dir/'earthstns_itrf93_201023.bsp'
+        if filename.exists() == False:
+            print("Missing Earthstations kernel")
+            SPICEKernels.download_earthstations()
         
         return
 
-# TODO: Add earthstns_itrf93_201023.bsp
 # TODO: Convert pck00010.tpc to native. Need to include unix2dos in requirements: conda install -c conda-forge unix2dos
 
 #%% Ephemeris generation

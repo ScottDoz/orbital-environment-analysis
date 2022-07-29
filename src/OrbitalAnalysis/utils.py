@@ -50,3 +50,13 @@ def get_data_home():
         os.makedirs(str(data_home/'Kernels'))
 
     return data_home
+
+def get_root_dir():
+    """
+    Get the root directory of this package 
+    ../orbital-environment-analysis/src/OrbitalAnalysis
+    """
+    root_dir = Path("utils.py").parent.absolute() # Directory of this file
+    
+    
+    return root_dir
