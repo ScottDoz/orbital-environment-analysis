@@ -246,7 +246,7 @@ class SPICEKernels:
         # Check data directory
         self._check_data_directory()
         
-        if platform == 'win32'
+        if platform == 'win32':
             method = 'copy'
         else:
             method = 'download'
