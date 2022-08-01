@@ -225,15 +225,52 @@ def cross_validation(filename):
         bandwidths = np.linspace(bandwidth_min,bandwidth_max,N)
     else:
         # TODO: Add logspace
-        pass
+        bandwidths = np.logspace(bandwidth_min,bandwidth_max,N)
+    
+    # Solver settings
+    cv = 5     # Cross validation method
+    n_jobs = -1 # Number of jobs to compute in parallel # Use -1 to use every core
+    
+    
+    # Print settings
+    print('\n\nRunning cross validation')
+    print('------------------------')
+    print('KDE Settings:')
+    print('Variables: {}, {}'.format(xlabel,ylabel))
+    print('Kernel: {}'.format(kernel))
+    print('Parameter: bandwidth')
+    
+    print('\nSolver Settings:')
+    print('Parameter values: {}'.format(bandwidths))
+    print('K-folds: {}'.format(cv))
+    print('N jobs: {}'.format(n_jobs))
+    
     
     # Create CV grid
     grid = GridSearchCV(KernelDensity(kernel=kernel),
                     {'bandwidth': bandwidths},
-                    cv=LeaveOneOut()) 
-    grid.fit(X) # Fit the data
+                    cv=cv, #LeaveOneOut(),
+                    n_jobs=n_jobs,
+                    )
+    %time grid.fit(X) # Fit the data (time the function)
+    
     # Extract results
-    opt_bandwidth = grid.best_params_['bandwidth']
-    pdb.set_trace()
+    # opt_bandwidth = grid.best_params_['bandwidth']
+    
+    dfresults = pd.DataFrame(grid.cv_results_)
+    
+    # TODO: Print results summary
+    
+    # Plot results
+    fig, ax = plt.subplots(1,1,figsize=(8, 8))
+    ax.plot(dfresults.param_bandwidth,dfresults.mean_test_score,'-k')
+    ax.set_xlabel('bandwidth')
+    ax.set_ylabel('score (total log-likelihood)')
+    ax.set_yscale('log')
+    if spacing_type == 'logspace':
+        ax.set_xscale('log')
+    plt.show()
+    
+    return grid
     
     
