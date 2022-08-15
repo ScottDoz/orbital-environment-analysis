@@ -195,7 +195,7 @@ def rowcol_2_index(row,col,nrows,ncols):
 
 def cross_validation(filename):
     # Load experiments config file
-    full_filename=get_data_home()/"DIT_Experiments"/"KDE"/"CV"/filename
+    full_filename = get_data_home()/"DIT_Experiments"/"KDE"/"CV"/filename
     df_config = pd.read_csv(full_filename)
     
     # Extract parameters
@@ -258,6 +258,10 @@ def cross_validation(filename):
     # opt_bandwidth = grid.best_params_['bandwidth']
     
     dfresults = pd.DataFrame(grid.cv_results_)
+    
+    outfile = filename.split('.csv')[0] + '_results.csv'
+    full_outfilename = full_filename.parent/outfile
+    dfresults.to_csv(str(full_outfilename))
     
     # TODO: Print results summary
     
