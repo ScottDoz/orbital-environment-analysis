@@ -275,6 +275,11 @@ def cross_validation(filename):
         ax.set_xscale('log')
     plt.show()
     
+    # Print optimal bandwidth
+    ind = np.argmax(dfresults.mean_test_score) # Index of peak
+    opt_bandwidth = dfresults['param_bandwidth'].iloc[ind]
+    print('Optimal binwidth: {}'.format(opt_bandwidth))
+        
     return grid
     
     
