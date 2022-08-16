@@ -27,6 +27,111 @@ import pdb
 from Ephem import *
 from Events import *
 
+#%% Simple Histograms
+
+def plot_hist(df,var,label=None,bins=100,xlog=False,ylog=False):
+    '''
+    Plot a histogram.
+
+    Parameters
+    ----------
+    df : Dataframe
+        Input dataset
+    var : str
+        Variable of interest in dataset.
+    label : str, optional
+        Label to place on the x axis.
+        If left blank, will use variable name.
+    bins : int, optional
+        Number of bins in histogram. The default is 100.
+    xlog : bool, optional
+        Flag to specify log-scale on x axis. The default is False.
+    ylog : bool, optional
+        Flag to specify log-scale on y axis. The default is False.
+
+    '''
+    
+    fig, ax = plt.subplots(1,1,figsize=(8, 8))
+    plt.hist(df[var],bins=bins)
+    if xlog:
+        ax.set_xscale('log')
+    if ylog:
+        ax.set_yscale('log')
+    if label is None:
+        label = var
+    ax.set_xlabel(label)
+    ax.set_ylabel('Frequnecy')
+    plt.show()
+    
+    
+    return
+
+#%% 2D Hess Diagram
+
+def plot_2d_hess(df,var1,var2,xlabel=None,ylabel=None,Nx=50,Ny=50,logscale=True):
+    
+    # Adapted from Fig 1.10 of AstroML
+    # https://www.astroml.org/book_figures/chapter1/fig_S82_hess.html#book-fig-chapter1-fig-s82-hess
+    
+    # from astroML.plotting import setup_text_plots
+    # setup_text_plots(fontsize=8, usetex=True)
+    
+    
+    # Extract data
+    x = df[var1].to_numpy()
+    y = df[var2].to_numpy()
+    
+    # Define bins
+    binsx = np.linspace(min(x),max(x),Nx)
+    binsy = np.linspace(min(y),max(y),Ny)
+    
+    # Compute and plot 2D histogram
+    H, xbins, ybins = np.histogram2d(x, y,bins=(binsx,binsy))
+    # Get color of pixels
+    if logscale:
+        H[H == 0] = 1  # prevent warnings in log10
+        c = np.log10(H).T
+        clabel = 'log(Num per pixel)'
+    else:
+        c = H.T
+        clabel = 'Num per pixel'
+    
+    
+    # Create a black and white color map where bad data (NaNs) are white
+    cmap = plt.cm.binary
+    # cmap.set_bad('w', 1.)
+    
+    # Use the image display function imshow() to plot the result
+    fig, ax = plt.subplots(figsize=(5, 3.75))
+    
+    im = ax.imshow(c, origin='lower',
+              extent=[xbins[0], xbins[-1], ybins[0], ybins[-1]],
+              # cmap=cmap, #interpolation='nearest',
+              cmap=plt.cm.gist_heat_r,
+              aspect='auto')
+    
+    if xlabel is None:
+        xlabel = var1
+    if ylabel is None:
+        ylabel = var2
+    
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    
+    ax.set_xlim(min(x), max(x))
+    ax.set_ylim(min(y), max(y))
+    
+    # cb = plt.colorbar(ticks=[0, 1, 2, 3], orientation='horizontal')
+    plt.colorbar(im,ax=ax,label=clabel)
+    # cb.set_label(r'$\mathrm{number\ in\ pixel}$')
+    # plt.clim(0, 3)
+    
+    
+    plt.show()
+    
+    return
+
+
 
 #%% Visualizing Orbital Angular Momentum Space
 

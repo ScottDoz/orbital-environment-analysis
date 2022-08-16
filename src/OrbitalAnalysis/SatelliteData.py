@@ -21,6 +21,7 @@ from pathlib import Path
 import os
 import configparser
 import spiceypy as spice
+from sklearn.decomposition import PCA
 
 import pdb
 
@@ -44,7 +45,7 @@ from utils import get_data_home
 # Medium : 0.1 < RCS < 1.0
 # Large  : 1.0 < RCS
 
-def load_satellites(group='all',compute_params=True):
+def load_satellites(group='all',compute_params=True,compute_pca=True):
     '''
     Load TLEs of special interest satellites from Celestrak or all objects from
     SpaceTrack. Return data as a dataframe.
@@ -134,7 +135,10 @@ def load_satellites(group='all',compute_params=True):
         # Compute orbital parameters
         if compute_params:
             df = compute_orbital_params(df)
-            
+        
+        # Compute principal components
+        if compute_pca:
+            df = compute_principal_components(df,n_components=10)
         
         return df
     
@@ -159,6 +163,10 @@ def load_satellites(group='all',compute_params=True):
     # Compute orbital parameters
     if compute_params:
         df = compute_orbital_params(df)
+    
+    # Compute principal components
+    if compute_pca:
+        df = compute_principal_components(df,n_components=10)
     
     # Convert norad to int
     df.norad = df.norad.astype(int)
@@ -555,5 +563,61 @@ def compute_orbital_params(df):
     #          'a','e','i','om','w','M', # Elements
     #          'n','p','q','Q','h','hx','hy','hz',
     #          ]]
+    
+    return df
+
+def compute_principal_components(df,n_components=10):
+    '''
+    Perform Principal Component Analyis and return the PCs to the dataframe.
+
+    Parameters
+    ----------
+    df : TYPE
+        Input dataframe
+    n_components : TYPE, optional
+        Number of components to output. The default is 10.
+
+    Returns
+    -------
+    df : TYPE
+        DESCRIPTION.
+
+    '''
+    
+    # Select features from dataset to include.
+    # Exclude orbital parameters, since they are linear combinations of 
+    # orbital elements
+    features = ['a','e','i','om','w','n','h','hx','hy','hz']
+    Xfull = df[features] # Extract feature data
+    
+    # Principal components
+    # Run PCA on all numeric orbital parameters
+    pca = PCA(n_composXfull)
+    # Generate labels ['PC1','PC2', ...]
+    labels = ['PC'+str(i+1) for i in range(n_components)]
+    # Append data
+    df[labels] = PC
+    
+    # Variance explained by each PC
+    pca.explained_variance_ratio_
+    # Feature importance
+    # PC1,PC2,PC3: 4.27367824e-01, 2.86265363e-01, 2.60351753e-01, 
+    # PC4,PC5,PC6: 2.21499988e-02, 3.86125358e-03, 2.54105655e-06, 
+    # PC7,PC8,PC9: 1.26163922e-06, 4.55552048e-09, 6.39255498e-10, 
+    # PC10: 5.17447310e-13
+    
+    # Most of variance explained by first 3 comonents
+    # Drops off after that
+    
+    # Importance of each feature
+    # Contribution of each input feature to each output PC
+    # PC1: print(abs( pca.components_[0,:] ))
+    # 
+    # Main importance is contributed from
+    # 'a','h','hx','hy','hz' 
+    
+    
+    # See: https://stackoverflow.com/questions/50796024/feature-variable-importance-after-a-pca-analysis
+    # For discussion on feature importances
     
     return df
