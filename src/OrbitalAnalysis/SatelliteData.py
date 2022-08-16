@@ -616,6 +616,9 @@ def compute_principal_components(df,n_components=10):
     # Main importance is contributed from
     # 'a','h','hx','hy','hz' 
     
+    # Format feature importance into a dataframe
+    dffeatimp = pd.DataFrame(pca.components_.T,columns=labels)
+    dffeatimp.insert(0,'Feature',features)
     
     # See: https://stackoverflow.com/questions/50796024/feature-variable-importance-after-a-pca-analysis
     # For discussion on feature importances
