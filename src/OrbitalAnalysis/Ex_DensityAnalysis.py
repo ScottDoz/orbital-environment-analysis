@@ -45,7 +45,7 @@ def run_kde_experiment(filename,plot=True):
     the satellite catalog under differnt kernel and bandwidth parameters.
     
     Input coordinates, kernel function and bandwidth in a config csv file.
-    See example example_kde_inputs.csv in main directory of repo. 
+    See example example_kde_inputs.csv in main directory of repo.
     Copy this file to ~/satellite_data/Data/DIT_Experiments/KDE.
 
     Parameters
@@ -194,6 +194,20 @@ def rowcol_2_index(row,col,nrows,ncols):
     return ind
 
 def cross_validation(filename):
+    '''
+    Cross validation of KDE
+
+    Parameters
+    ----------
+    filename : str
+        Name of the config file.
+
+    Returns
+    -------
+    grid : TYPE
+        DESCRIPTION.
+
+    '''
     # Load experiments config file
     full_filename = get_data_home()/"DIT_Experiments"/"KDE"/"CV"/filename
     df_config = pd.read_csv(full_filename)
@@ -204,15 +218,22 @@ def cross_validation(filename):
     bandwidth_max = float(df_config['Value'][df_config.Parameter == 'bandwidth_max'].iloc[0])
     bandwidth_min= float(df_config['Value'][df_config.Parameter == 'bandwidth_min'].iloc[0])
     N = int(df_config['Value'][df_config.Parameter == 'N'].iloc[0])
-    xlabel = df_config['Value'][df_config.Parameter == 'xlabel'].iloc[0]
-    ylabel = df_config['Value'][df_config.Parameter == 'ylabel'].iloc[0]
+    # xlabel = df_config['Value'][df_config.Parameter == 'xlabel'].iloc[0]
+    # ylabel = df_config['Value'][df_config.Parameter == 'ylabel'].iloc[0]
     normalized = df_config['Value'][df_config.Parameter == 'normalized'].iloc[0]
+    params = df_config['Value'][df_config.Parameter == 'parameters'].iloc[0]
+    
+    # Parse string list of params to list
+    params_list = params.strip('][)(').split(',')
+    params_list = [p.strip() for p in params_list] # Strip leading+trailing spaces
     
     # Load the satellite data and compute orbital parameters
     df = load_satellites(group='all',compute_params=True)
     
     # Extract data
-    X = df[[xlabel,ylabel]].to_numpy()
+    # X = df[[xlabel,ylabel]].to_numpy()
+    X = df[params_list].to_numpy()
+    
     # Normalize data
     if normalized:
         print('Normalizing data')
@@ -236,7 +257,7 @@ def cross_validation(filename):
     print('\n\nRunning cross validation')
     print('------------------------')
     print('KDE Settings:')
-    print('Variables: {}, {}'.format(xlabel,ylabel))
+    print('Variables: {}'.format(params_list))
     print('Kernel: {}'.format(kernel))
     print('Parameter: bandwidth')
     
@@ -274,6 +295,11 @@ def cross_validation(filename):
     if spacing_type == 'logspace':
         ax.set_xscale('log')
     plt.show()
+    
+    # Print output values
+    print('\nResults')
+    print('-------')
+    print('Mean Scores: {}'.format(dfresults.mean_test_score.to_numpy()))
     
     # Print optimal bandwidth
     ind = np.argmax(dfresults.mean_test_score) # Index of peak
