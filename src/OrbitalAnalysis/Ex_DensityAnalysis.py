@@ -9,26 +9,27 @@ from SatelliteData import *
 from Clustering import *
 from DistanceAnalysis import *
 from Visualization import *
-from sklearn import preprocessing
 from utils import get_data_home
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-from sklearn.model_selection import GridSearchCV
-from sklearn.model_selection import LeaveOneOut
+
 # from Overpass import *
 # from Ephem import *
 # from Events import *
 # from GmatScenario import *
 
 # Package imports
-import pdb
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 from sklearn.neighbors import KernelDensity
+from sklearn import preprocessing
+from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import LeaveOneOut
+import pdb
 
 def density_analysis(x,y):
     # This still works if you want to plot a single figure.
     # Depretiate in future???
     
     # Load the satellite data and compute orbital parameters
-    df = load_satellites(group='all',compute_params=True)
+    df = load_satellites(group='all',compute_params=True,compute_pca=True)
     X = df[['a','e','i','om','w','h','hx','hy','hz']].to_numpy()
     print (df.columns)
     min_max_scaler = preprocessing.MinMaxScaler()
@@ -212,6 +213,9 @@ def cross_validation(filename):
     full_filename = get_data_home()/"DIT_Experiments"/"KDE"/"CV"/filename
     df_config = pd.read_csv(full_filename)
     
+    # Load the satellite data and compute orbital parameters
+    df = load_satellites(group='all',compute_params=True)
+    
     # Extract parameters
     kernel = df_config['Value'][df_config.Parameter == 'kernel'].iloc[0]
     spacing_type = df_config['Value'][df_config.Parameter == 'spacing_type'].iloc[0]
@@ -227,8 +231,8 @@ def cross_validation(filename):
     params_list = params.strip('][)(').split(',')
     params_list = [p.strip() for p in params_list] # Strip leading+trailing spaces
     
-    # Load the satellite data and compute orbital parameters
-    df = load_satellites(group='all',compute_params=True)
+
+    
     
     # Extract data
     # X = df[[xlabel,ylabel]].to_numpy()
@@ -308,4 +312,124 @@ def cross_validation(filename):
         
     return grid
     
+
+#%% Density Values for Satellites
+
+def evaluate_satellite_densities():
+    '''
+    Apply KDE using a number of different parameter sets, with the optimal
+    kernel and bandwidth identified from cross validation steps. Evauate the
+    log-likelihood density values at the associated coordinates of all satellites
+    in the catalog. Return a dataframe containing normalized parameters and
+    the log-likelihood density values.
+
+    Returns
+    -------
+    df : Dataframe
+        Dataframe with normalized parameters and log-likelihood measurements
+        for a number of parameter combinations.
+
+    '''
     
+    
+    # Import dataset
+    df = load_satellites(group='all',compute_params=True)
+    # Limit data fields
+    df = df[['Name','NoradId','a','e','i','om','w','M','p','q','Q','h','hx','hy','hz','hphi','htheta']]
+    
+    # Scale all data fields independently to 0-1
+    min_max_scaler = preprocessing.MinMaxScaler()
+    Xfull = df[['a','e','i','om','w','M','p','q','Q','h','hx','hy','hz','hphi','htheta']].to_numpy()
+    Xfull = min_max_scaler.fit_transform(Xfull)
+    df[['a','e','i','om','w','M','p','q','Q','h','hx','hy','hz','hphi','htheta']] = Xfull
+    
+    # Apply KDE and evaluate at satellite points.
+    # Uncomment/add different parameter sets
+    
+    # 2D Combinations
+    
+    # # 1. (a,e)
+    # X = df[['a','e']].to_numpy()
+    # kde1 = KernelDensity(bandwidth=0.004125, kernel='gaussian')
+    # kde1 = kde1.fit(X)
+    # # Evaluating at satellite points
+    # log_satdens = kde1.score_samples(X)
+    # # Append to dataframe
+    # df = df.assign(p_ae=log_satdens)
+    
+    # # 2. (a,i)
+    # X = df[['a','i']].to_numpy()
+    # kde1 = KernelDensity(bandwidth=0.0034000000000000002, kernel='gaussian')
+    # kde1 = kde1.fit(X)
+    # # Evaluating at satellite points
+    # log_satdens = kde1.score_samples(X)
+    # # Append to dataframe
+    # df = df.assign(p_ai=log_satdens)
+    
+    # # 3. (hx,hy)
+    # X = df[['hx','hy']].to_numpy()
+    # kde1 = KernelDensity(bandwidth=0.00725, kernel='gaussian')
+    # kde1 = kde1.fit(X)
+    # # Evaluating at satellite points
+    # log_satdens = kde1.score_samples(X)
+    # # Append to dataframe
+    # df = df.assign(p_hxhy=log_satdens)
+    
+    # # 4. (hy,hz)
+    # X = df[['hy','hz']].to_numpy()
+    # kde1 = KernelDensity(bandwidth=0.00765, kernel='gaussian')
+    # kde1 = kde1.fit(X)
+    # # Evaluating at satellite points
+    # log_satdens = kde1.score_samples(X)
+    # # Append to dataframe
+    # df = df.assign(p_hyhz=log_satdens)
+    
+    # # 5. (hx,hz)
+    # X = df[['hx','hz']].to_numpy()
+    # kde1 = KernelDensity(bandwidth=0.006158482110660267, kernel='gaussian')
+    # kde1 = kde1.fit(X)
+    # # Evaluating at satellite points
+    # log_satdens = kde1.score_samples(X)
+    # # Append to dataframe
+    # df = df.assign(p_hxhz=log_satdens)
+    
+    # # 6. (h,hz)
+    # X = df[['h','hz']].to_numpy()
+    # kde1 = KernelDensity(bandwidth=0.004281332398719396, kernel='gaussian')
+    # kde1 = kde1.fit(X)
+    # # Evaluating at satellite points
+    # log_satdens = kde1.score_samples(X)
+    # # Append to dataframe
+    # df = df.assign(p_hhz=log_satdens)
+    
+    # 3D Combinations
+    
+    # Orbital Element Space (a,e,i)
+    X = df[['a','e','i']].to_numpy()
+    kde1 = KernelDensity(bandwidth=0.006158482110660267, kernel='gaussian')
+    kde1 = kde1.fit(X)
+    # Evaluating at satellite points
+    log_satdens = kde1.score_samples(X)
+    # Append to dataframe
+    df = df.assign(p_aei=log_satdens)
+    
+    # Angular momentum space (hx,hy,hz)
+    X = df[['hx','hy','hz']].to_numpy()
+    kde1 = KernelDensity(bandwidth=0.008858667904100823, kernel='gaussian')
+    kde1 = kde1.fit(X)
+    # Evaluating at satellite points
+    log_satdens = kde1.score_samples(X)
+    # Append to dataframe
+    df = df.assign(p_hxhyhz=log_satdens)
+    
+    # Principal Component Analysis
+    
+    # Plot Orbital Momentum
+    plot_h_space_numeric(df,color='p_hxhyhz',logColor=False,colorscale='Blackbody_r')
+    
+    
+    # Plot
+    # plt.scatter(df.h,df.hz,c=df.p_hhz.to_numpy(),s=0.1)
+    
+    return df
+
