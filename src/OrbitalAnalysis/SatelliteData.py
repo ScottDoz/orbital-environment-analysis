@@ -592,7 +592,11 @@ def compute_principal_components(df,n_components=10):
     
     # Principal components
     # Run PCA on all numeric orbital parameters
-    pca = PCA(n_composXfull)
+    pca = PCA(n_components)
+    pca.fit(Xfull)
+    PC = pca.transform(Xfull)
+    
+    
     # Generate labels ['PC1','PC2', ...]
     labels = ['PC'+str(i+1) for i in range(n_components)]
     # Append data
