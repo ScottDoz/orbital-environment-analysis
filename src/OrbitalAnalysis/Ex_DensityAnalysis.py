@@ -23,6 +23,7 @@ from sklearn import preprocessing
 from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import LeaveOneOut
 import pdb
+import time
 
 def density_analysis(x,y):
     # This still works if you want to plot a single figure.
@@ -277,7 +278,9 @@ def cross_validation(filename):
                     cv=cv, #LeaveOneOut(),
                     n_jobs=n_jobs,
                     )
-    %time grid.fit(X) # Fit the data (time the function)
+    start = time.time()
+    grid.fit(X) # Fit the data (time the function)
+    print('Runtime: {}'.format(time.time() - start)) 
     
     # Extract results
     # opt_bandwidth = grid.best_params_['bandwidth']
@@ -315,7 +318,7 @@ def cross_validation(filename):
 
 #%% Density Values for Satellites
 
-def evaluate_satellite_densities():
+def evaluate_satellite_densities(save_output=True):
     '''
     Apply KDE using a number of different parameter sets, with the optimal
     kernel and bandwidth identified from cross validation steps. Evauate the
@@ -333,74 +336,89 @@ def evaluate_satellite_densities():
     
     
     # Import dataset
-    df = load_satellites(group='all',compute_params=True)
+    df = load_satellites(group='all',compute_params=True,compute_pca=True)
     # Limit data fields
-    df = df[['Name','NoradId','a','e','i','om','w','M','p','q','Q','h','hx','hy','hz','hphi','htheta']]
+    df = df[['Name','NoradId','a','e','i','om','w','M','p','q','Q',
+             'h','hx','hy','hz','hphi','htheta',
+             'PC1','PC2','PC3','PC4','PC5']]
     
     # Scale all data fields independently to 0-1
     min_max_scaler = preprocessing.MinMaxScaler()
-    Xfull = df[['a','e','i','om','w','M','p','q','Q','h','hx','hy','hz','hphi','htheta']].to_numpy()
+    features = ['a','e','i','om','w','M','p','q','Q',
+                'h','hx','hy','hz','hphi','htheta',
+                'PC1','PC2','PC3','PC4','PC5',
+                ]
+    Xfull = df[features].to_numpy()
     Xfull = min_max_scaler.fit_transform(Xfull)
-    df[['a','e','i','om','w','M','p','q','Q','h','hx','hy','hz','hphi','htheta']] = Xfull
+    df[features] = Xfull
     
     # Apply KDE and evaluate at satellite points.
     # Uncomment/add different parameter sets
     
     # 2D Combinations
     
-    # # 1. (a,e)
-    # X = df[['a','e']].to_numpy()
-    # kde1 = KernelDensity(bandwidth=0.004125, kernel='gaussian')
-    # kde1 = kde1.fit(X)
-    # # Evaluating at satellite points
-    # log_satdens = kde1.score_samples(X)
-    # # Append to dataframe
-    # df = df.assign(p_ae=log_satdens)
+    # 1. (a,e)
+    X = df[['a','e']].to_numpy()
+    kde1 = KernelDensity(bandwidth=0.004125, kernel='gaussian')
+    kde1 = kde1.fit(X)
+    # Evaluating at satellite points
+    log_satdens = kde1.score_samples(X)
+    # Append to dataframe
+    df = df.assign(p_ae=log_satdens)
     
-    # # 2. (a,i)
-    # X = df[['a','i']].to_numpy()
-    # kde1 = KernelDensity(bandwidth=0.0034000000000000002, kernel='gaussian')
-    # kde1 = kde1.fit(X)
-    # # Evaluating at satellite points
-    # log_satdens = kde1.score_samples(X)
-    # # Append to dataframe
-    # df = df.assign(p_ai=log_satdens)
+    # 2. (a,i)
+    X = df[['a','i']].to_numpy()
+    kde1 = KernelDensity(bandwidth=0.0034000000000000002, kernel='gaussian')
+    kde1 = kde1.fit(X)
+    # Evaluating at satellite points
+    log_satdens = kde1.score_samples(X)
+    # Append to dataframe
+    df = df.assign(p_ai=log_satdens)
     
-    # # 3. (hx,hy)
-    # X = df[['hx','hy']].to_numpy()
-    # kde1 = KernelDensity(bandwidth=0.00725, kernel='gaussian')
-    # kde1 = kde1.fit(X)
-    # # Evaluating at satellite points
-    # log_satdens = kde1.score_samples(X)
-    # # Append to dataframe
-    # df = df.assign(p_hxhy=log_satdens)
+    # 3. (hx,hy)
+    X = df[['hx','hy']].to_numpy()
+    kde1 = KernelDensity(bandwidth=0.00725, kernel='gaussian')
+    kde1 = kde1.fit(X)
+    # Evaluating at satellite points
+    log_satdens = kde1.score_samples(X)
+    # Append to dataframe
+    df = df.assign(p_hxhy=log_satdens)
     
-    # # 4. (hy,hz)
-    # X = df[['hy','hz']].to_numpy()
-    # kde1 = KernelDensity(bandwidth=0.00765, kernel='gaussian')
-    # kde1 = kde1.fit(X)
-    # # Evaluating at satellite points
-    # log_satdens = kde1.score_samples(X)
-    # # Append to dataframe
-    # df = df.assign(p_hyhz=log_satdens)
+    # 4. (hy,hz)
+    X = df[['hy','hz']].to_numpy()
+    kde1 = KernelDensity(bandwidth=0.00765, kernel='gaussian')
+    kde1 = kde1.fit(X)
+    # Evaluating at satellite points
+    log_satdens = kde1.score_samples(X)
+    # Append to dataframe
+    df = df.assign(p_hyhz=log_satdens)
     
-    # # 5. (hx,hz)
-    # X = df[['hx','hz']].to_numpy()
-    # kde1 = KernelDensity(bandwidth=0.006158482110660267, kernel='gaussian')
-    # kde1 = kde1.fit(X)
-    # # Evaluating at satellite points
-    # log_satdens = kde1.score_samples(X)
-    # # Append to dataframe
-    # df = df.assign(p_hxhz=log_satdens)
+    # 5. (hx,hz)
+    X = df[['hx','hz']].to_numpy()
+    kde1 = KernelDensity(bandwidth=0.006158482110660267, kernel='gaussian')
+    kde1 = kde1.fit(X)
+    # Evaluating at satellite points
+    log_satdens = kde1.score_samples(X)
+    # Append to dataframe
+    df = df.assign(p_hxhz=log_satdens)
     
-    # # 6. (h,hz)
-    # X = df[['h','hz']].to_numpy()
-    # kde1 = KernelDensity(bandwidth=0.004281332398719396, kernel='gaussian')
-    # kde1 = kde1.fit(X)
-    # # Evaluating at satellite points
-    # log_satdens = kde1.score_samples(X)
-    # # Append to dataframe
-    # df = df.assign(p_hhz=log_satdens)
+    # 6. (h,hz)
+    X = df[['h','hz']].to_numpy()
+    kde1 = KernelDensity(bandwidth=0.004281332398719396, kernel='gaussian')
+    kde1 = kde1.fit(X)
+    # Evaluating at satellite points
+    log_satdens = kde1.score_samples(X)
+    # Append to dataframe
+    df = df.assign(p_hhz=log_satdens)
+    
+    # 7. (h,htheta)
+    X = df[['h','htheta']].to_numpy()
+    kde1 = KernelDensity(bandwidth=0.004281332398719396, kernel='gaussian')
+    kde1 = kde1.fit(X)
+    # Evaluating at satellite points
+    log_satdens = kde1.score_samples(X)
+    # Append to dataframe
+    df = df.assign(p_hhtheta=log_satdens)
     
     # 3D Combinations
     
@@ -424,12 +442,150 @@ def evaluate_satellite_densities():
     
     # Principal Component Analysis
     
-    # Plot Orbital Momentum
-    plot_h_space_numeric(df,color='p_hxhyhz',logColor=False,colorscale='Blackbody_r')
+    # PC1,PC2
+    X = df[['PC1','PC2']].to_numpy()
+    kde1 = KernelDensity(bandwidth=0.008858667904100823, kernel='gaussian')
+    kde1 = kde1.fit(X)
+    # Evaluating at satellite points
+    log_satdens = kde1.score_samples(X)
+    # Append to dataframe
+    df = df.assign(p_PC1PC2=log_satdens)
     
+    # PC1,PC2,PC3
+    X = df[['PC1','PC2','PC3']].to_numpy()
+    kde1 = KernelDensity(bandwidth=0.008858667904100823, kernel='gaussian')
+    kde1 = kde1.fit(X)
+    # Evaluating at satellite points
+    log_satdens = kde1.score_samples(X)
+    # Append to dataframe
+    df = df.assign(p_PC1PC2PC3=log_satdens)
+    
+    
+    # Plot Orbital Momentum
+    # plot_h_space_numeric(df,color='p_hxhyhz',logColor=False,colorscale='Blackbody_r')
+    
+    
+    # 
     
     # Plot
     # plt.scatter(df.h,df.hz,c=df.p_hhz.to_numpy(),s=0.1)
     
+    # Save results
+    if save_output:
+        outfile = get_data_home()/"DIT_Experiments"/"KDE"/"Loglikelihood.csv"
+        df.to_csv(outfile,index=False)
+    
+    
     return df
+
+# Load results
+def load_density_values():
+    '''
+    Load the density values from Loglikelihood.csv
+
+    Returns
+    -------
+    df : TYPE
+        DESCRIPTION.
+
+    '''
+    
+    filename = get_data_home()/"DIT_Experiments"/"KDE"/"Loglikelihood.csv"
+    
+    # Check if file exists
+    if os.path.isfile(filename) == False:
+        # Download it
+        df = evaluate_satellite_densities(save_output=True)
+    else:
+        # Load saved file
+        df = pd.read_csv(filename)
+    
+    return df
+
+# Analysize density results
+def analyze_density_results():
+    
+    # Load data
+    df = load_satellites(group='all',compute_params=True,compute_pca=True)
+    
+    # Load in density results
+    dfd = load_density_values()
+    
+    # Merge
+    df = pd.merge(df,dfd,how='left',on=['Name','NoradId'],suffixes=['','_norm'])
+    
+    # Histograms of values (plotly)
+    # fig = go.Figure(data=[go.Histogram(x=df.p_PC1PC2PC3)]) # PC1
+    # fig.add_trace(go.Histogram(x=df['p_hxhyhz'],))
+    # fig.update_layout(barmode='overlay')
+    # fig.add_trace(go.Histogram(x=df['p_aei'],))
+    # plotly.offline.plot(fig)
+    
+    # 1. Investigate the distribution of values in each -----------------------
+    # Also the correlation between the values 
+    
+    # Histograms matplotlib
+    fig, axs = plt.subplots(3,1,figsize=(8, 8))
+    axs[0].hist(df.p_aei, bins=50,label='Orbital Elements')
+    axs[0].set_xlabel('Log-likelihood (a,e,i)')
+    axs[1].hist(df.p_hxhyhz, bins=50,label='Angular Momentum')
+    axs[1].set_xlabel('Log-likelihood (hx,hy,hz)')
+    axs[2].hist(df.p_PC1PC2PC3, bins=50,label='Principal Components')
+    axs[2].set_xlabel('Log-likelihood (PC1,PC2,PC3)')
+    plt.show()
+    
+    # Show correlation between PCA and Angular Momentum
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.plot(df.p_PC1PC2PC3,df.p_hxhyhz,'.k',markersize=0.2)
+    ax.set_xlabel('Log-likelihood (PC1,PC2,PC3)')
+    ax.set_ylabel('Log-likelihood (hx,hy,hz)')
+    plt.show()
+    
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.plot(df.p_PC1PC2PC3,df.p_aei,'.k',markersize=0.2)
+    ax.set_xlabel('Log-likelihood (PC1,PC2,PC3)')
+    ax.set_ylabel('Log-likelihood (a,e,i)')
+    plt.show()
+    
+    
+
+    # plot_2d_scatter_numeric(df,'p_hxhyhz','p_PC1PC2PC3','OBJECT_TYPE',logColor=False,size=)
+    
+    #2. Plot the distribution of points and measures of their density ---------
+    # Plot 3D scatter plots
+    
+    # Orbital Element Space
+    plot_3d_scatter_numeric(df,'a_norm','e_norm','i_norm',color='p_aei',
+                            logColor=False,colorscale='Blackbody_r',
+                            xrange=[0,0.15],
+                            filename = 'p_aei.html')
+
+    
+    
+    # Angular Momentum Space
+    plot_3d_scatter_numeric(df,'hx_norm','hy_norm','hz_norm',color='p_hxhyhz',
+                            logColor=False,colorscale='Blackbody_r',
+                            xrange=[0,0.8],
+                            yrange=[0.2,1],
+                            zrange=[0,0.8],
+                            filename = 'p_hxhyhz.html')
+    
+    # plot_3d_scatter_numeric(df,'h','om','i',color='p_hxhyhz',
+    #                             logColor=False,colorscale='Blackbody_r',
+    #                             filename = 'p_hxhyhz.html')
+    
+    # # Principal Components (don't bother - already highly correlated to ang momentum)
+    # plot_3d_scatter_numeric(df,'PC1','PC2','PC3',color='p_PC1PC2PC3',
+    #                         logColor=False,colorscale='Blackbody_r',
+    #                         filename = 'p_PCA.html')
+    
+    
+    # 3D Scatter by Object type
+    # plot_3d_scatter_cat(df,'hx','hy','hz', 'OBJECT_TYPE')
+    
+    
+    
+    return
+
+
 

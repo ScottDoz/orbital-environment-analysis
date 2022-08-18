@@ -386,6 +386,233 @@ def plot_h_space_cat(df,cat='vishnu_cluster'):
 
     return
 
+#%% 3D Scatter Plots
+
+def plot_3d_scatter_numeric(df,xlabel,ylabel,zlabel,color='i',
+                            logColor=False,colorscale='Blackbody',
+                            xrange=[None,None],yrange=[None,None],zrange=[None,None],
+                            filename='temp-plot.html'):
+    '''
+    Plot the catalog of objects in angular 3D coordinates.
+    Color by a numeric parameter.
+    
+    '''
+    
+    method = 'plotly'
+    
+    if method == 'matplotlib':
+        # Simple matplotlib scatter plot
+        import matplotlib.pyplot as plt
+        
+        fig = plt.figure(figsize=(12, 12))
+        ax = fig.add_subplot(projection='3d')
+        
+        ax.scatter(df.hx,df.hy,df.hz,s=1)
+        plt.show()
+    
+    elif method == 'plotly':
+        # Plotly scatter
+        
+        import plotly.graph_objects as go
+        import plotly
+        import plotly.express as px
+        
+        # Select color data
+        c = df[color]
+        color_label = color
+        if logColor == True:
+            # Log of color
+            c = np.log10(c)
+            color_label = 'log('+color+')'
+        
+        # Select x,y,z data
+        x = df[xlabel]
+        y = df[ylabel]
+        z = df[zlabel]
+        
+        
+        fig = go.Figure(data=[go.Scatter3d(
+                            x=x,
+                            y=y,
+                            z=z,
+                            customdata=df[['Name','a','e','i','om','w']],
+                            hovertext = df.Name,
+                            hoverinfo = 'text+x+y+z',
+                            hovertemplate=
+                                "<b>%{customdata[0]}</b><br><br>" +
+                                "x: %{x:.2f}<br>" +
+                                "y: %{y:.2f}<br>" +
+                                "z: %{z:.2f}<br>" +
+                                "a: %{customdata[1]:.2f} km<br>" +
+                                "e: %{customdata[2]:.2f}<br>" +
+                                "i: %{customdata[3]:.2f} deg<br>" +
+                                "om: %{customdata[4]:.2f} deg<br>" +
+                                "w: %{customdata[5]:.2f} deg<br>" +
+                                "",
+                            mode='markers',
+                            marker=dict(
+                                size=1,
+                                color=c,             # set color to an array/list of desired values
+                                colorscale=colorscale,   # choose a colorscale 'Viridis'
+                                opacity=0.8,
+                                colorbar=dict(thickness=20,title=color_label)
+                            ),
+                        )])
+        
+        # Axes
+        if xrange != [None,None]:
+            fig.update_yaxes(range = xrange)
+            xaxis=go.layout.scene.XAxis(title=xlabel,gridcolor='white',gridwidth=1,range=xrange)
+        else:
+            xaxis=go.layout.scene.XAxis(title=xlabel,gridcolor='white',gridwidth=1)
+        if yrange != [None,None]:
+            yaxis=go.layout.scene.YAxis(title=ylabel,gridcolor='white',gridwidth=1,range=yrange)
+        else:
+            yaxis=go.layout.scene.YAxis(title=ylabel,gridcolor='white',gridwidth=1)
+        if zrange != [None,None]:
+            zaxis=go.layout.scene.ZAxis(title=zlabel,gridcolor='white',gridwidth=1,range=zrange)
+        else:
+            zaxis=go.layout.scene.ZAxis(title=zlabel,gridcolor='white',gridwidth=1)
+
+        
+        # Update figure title and layout
+        fig.update_layout(
+            # title='2D Scatter',
+            title_x = 0.5,
+            scene=go.layout.Scene(
+                xaxis=xaxis,
+                yaxis=yaxis,
+                zaxis=zaxis,
+                # aspectmode='data',
+            ),
+            # paper_bgcolor='rgb(243, 243, 243)',
+            # plot_bgcolor='rgb(243, 243, 243)',
+            # paper_bgcolor='rgb(0, 0, 0)',
+            # plot_bgcolor='rgb(0, 0, 0)',
+            margin=dict(l=20, r=20, t=20, b=20)
+            )
+        
+        # Update axis ranges (optional)
+        fig.update_xaxes(range = xrange)
+        
+        
+        
+        # Render
+        plotly.offline.plot(fig, validate=False, filename=filename)
+        
+    
+    return
+
+def plot_3d_scatter_cat(df,xlabel,ylabel,zlabel, cat):
+    '''
+    Plot the catalog of objects in angular momentum space.
+    Color by a categorical parameter
+    
+    '''
+    
+    import plotly.graph_objects as go
+    import plotly
+    
+    # Check if data is timeseries (from multiple months)
+    timeseries = False
+    filename = '3DScatterCat.html'
+    mode = 'markers'
+    
+    # Create figure
+    fig = go.Figure()
+    
+    # Extract region data
+    from natsort import natsorted
+    region_names = natsorted(list(df[cat].unique())) # Names of regions
+    # Ensure region names are strings
+    region_names = [str(x) for x in region_names]
+    df[cat] = df[cat].astype(str)
+    
+    region_data = {region:df.query(cat+" == '%s'" %region) for region in region_names}
+    
+    # Add traces
+    for region_name, region in region_data.items():
+        
+        # Get the coordinates
+        x = region[xlabel]
+        y = region[ylabel]
+        z = region[zlabel]
+        
+        fig.add_trace(go.Scatter3d(
+                            x=x,
+                            y=y,
+                            z=z,
+                            name = region_name,
+                            customdata=region[['Name','a','e','i','om','w']],
+                            hovertext = region['Name'],
+                            hoverinfo = 'text+x+y+z',
+                            hovertemplate=
+                                "<b>%{customdata[0]}</b><br><br>" +
+                                "hx: %{x:.2f}<br>" +
+                                "hy: %{y:.2f}<br>" +
+                                "hz: %{z:.2f}<br>" +
+                                "a: %{customdata[1]:.2f} km<br>" +
+                                "e: %{customdata[2]:.2f}<br>" +
+                                "i: %{customdata[3]:.2f} deg<br>" +
+                                "om: %{customdata[4]:.2f} deg<br>" +
+                                "w: %{customdata[5]:.2f} deg<br>" +
+                                "",
+                            mode=mode,
+                            marker=dict(
+                                size=1,
+                                # color = color_dict[region_name],
+                                opacity=0.8,
+                                # colorbar=dict(thickness=20,title=cat)
+                            ),
+                        )
+            )
+    
+    # Update figure title and layout
+    fig.update_layout(
+        # title='2D Scatter',
+        title_x = 0.5,
+        scene=go.layout.Scene(
+                xaxis=go.layout.scene.XAxis(title=xlabel,gridcolor='white',gridwidth=1),
+                yaxis=go.layout.scene.YAxis(title=ylabel,gridcolor='white',gridwidth=1),
+                zaxis=go.layout.scene.ZAxis(title=zlabel,gridcolor='white',gridwidth=1),
+                # aspectmode='data',
+            ),
+        # paper_bgcolor='rgb(243, 243, 243)',
+        # plot_bgcolor='rgb(243, 243, 243)',
+        # paper_bgcolor='rgb(0, 0, 0)',
+        # plot_bgcolor='rgb(0, 0, 0)',
+        )
+    
+    # Update figure layout
+    fig.update_layout(legend=dict(
+                        title='Category: {}'.format(cat),
+                        itemsizing='constant',
+                        itemdoubleclick="toggleothers",
+                        # yanchor="top",
+                        # y=0.99,
+                        # xanchor="right",
+                        # x=0.01,
+                    ))
+    
+    # # Update ranges
+    # fig.update_layout(
+    #     scene = dict(
+    #         xaxis = dict(nticks=4, range=[-20*1E4,20*1E4],),
+    #         yaxis = dict(nticks=4, range=[-20*1E4,20*1E4],),
+    #         zaxis = dict(nticks=4, range=[-20*1E4,20*1E4],),
+    #         aspectmode = 'cube',
+    #         ),
+    #     # width=700,
+    #     # margin=dict(r=20, l=10, b=10, t=10)
+    #     )
+        
+    # Render
+    plotly.offline.plot(fig, validate=False, filename=filename)
+
+
+    return
+
+
 
 #%% Scatter Plots
 
@@ -519,6 +746,9 @@ def plot_2d_scatter_numeric(df,xlabel,ylabel,color,logColor=False,size=1.):
     
     
     return
+
+
+#%%
 
 def plot_kde(df,xlabel,ylabel,bandwidth,normalized=False):
     
