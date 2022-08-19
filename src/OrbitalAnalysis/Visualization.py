@@ -388,9 +388,10 @@ def plot_h_space_cat(df,cat='vishnu_cluster'):
 
 #%% 3D Scatter Plots
 
-def plot_3d_scatter_numeric(df,xlabel,ylabel,zlabel,color='i',
+def plot_3d_scatter_numeric(df,xlabel,ylabel,zlabel,color=None,
                             logColor=False,colorscale='Blackbody',
                             xrange=[None,None],yrange=[None,None],zrange=[None,None],
+                            aspectmode='auto',
                             filename='temp-plot.html'):
     '''
     Plot the catalog of objects in angular 3D coordinates.
@@ -418,20 +419,22 @@ def plot_3d_scatter_numeric(df,xlabel,ylabel,zlabel,color='i',
         import plotly.express as px
         
         # Select color data
-        c = df[color]
-        color_label = color
-        if logColor == True:
-            # Log of color
-            c = np.log10(c)
-            color_label = 'log('+color+')'
-        
+        if color is not None:
+            c = df[color]
+            color_label = color
+            if logColor == True:
+                # Log of color
+                c = np.log10(c)
+                color_label = 'log('+color+')'
+            
         # Select x,y,z data
         x = df[xlabel]
         y = df[ylabel]
         z = df[zlabel]
         
-        
-        fig = go.Figure(data=[go.Scatter3d(
+        if color is None:
+            # Plot without colorbar
+            fig = go.Figure(data=[go.Scatter3d(
                             x=x,
                             y=y,
                             z=z,
@@ -451,13 +454,41 @@ def plot_3d_scatter_numeric(df,xlabel,ylabel,zlabel,color='i',
                                 "",
                             mode='markers',
                             marker=dict(
-                                size=1,
-                                color=c,             # set color to an array/list of desired values
-                                colorscale=colorscale,   # choose a colorscale 'Viridis'
+                                size=0.5,
                                 opacity=0.8,
-                                colorbar=dict(thickness=20,title=color_label)
                             ),
                         )])
+        
+        else:
+            # Plot with colorbar
+        
+            fig = go.Figure(data=[go.Scatter3d(
+                                x=x,
+                                y=y,
+                                z=z,
+                                customdata=df[['Name','a','e','i','om','w']],
+                                hovertext = df.Name,
+                                hoverinfo = 'text+x+y+z',
+                                hovertemplate=
+                                    "<b>%{customdata[0]}</b><br><br>" +
+                                    "x: %{x:.2f}<br>" +
+                                    "y: %{y:.2f}<br>" +
+                                    "z: %{z:.2f}<br>" +
+                                    "a: %{customdata[1]:.2f} km<br>" +
+                                    "e: %{customdata[2]:.2f}<br>" +
+                                    "i: %{customdata[3]:.2f} deg<br>" +
+                                    "om: %{customdata[4]:.2f} deg<br>" +
+                                    "w: %{customdata[5]:.2f} deg<br>" +
+                                    "",
+                                mode='markers',
+                                marker=dict(
+                                    size=1,
+                                    color=c,             # set color to an array/list of desired values
+                                    colorscale=colorscale,   # choose a colorscale 'Viridis'
+                                    opacity=0.8,
+                                    colorbar=dict(thickness=20,title=color_label)
+                                ),
+                            )])
         
         # Axes
         if xrange != [None,None]:
@@ -483,7 +514,7 @@ def plot_3d_scatter_numeric(df,xlabel,ylabel,zlabel,color='i',
                 xaxis=xaxis,
                 yaxis=yaxis,
                 zaxis=zaxis,
-                # aspectmode='data',
+                aspectmode=aspectmode,
             ),
             # paper_bgcolor='rgb(243, 243, 243)',
             # plot_bgcolor='rgb(243, 243, 243)',
