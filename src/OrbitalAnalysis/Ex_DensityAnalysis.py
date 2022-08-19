@@ -17,6 +17,7 @@ from utils import get_data_home
 # from GmatScenario import *
 
 # Package imports
+import matplotlib
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from sklearn.neighbors import KernelDensity
 from sklearn import preprocessing
@@ -501,16 +502,268 @@ def load_density_values():
         df = pd.read_csv(filename)
     
     return df
+#%% Analysis for IAC Paper
+
+# Coordinate systems
+def explore_coordinates():
+    
+    # Load data
+    df = load_satellites(group='all',compute_params=True,compute_pca=True)
+    # Load in density results
+    dfd = load_density_values()
+    # Merge
+    df = pd.merge(df,dfd,how='left',on=['Name','NoradId'],suffixes=['','_norm'])
+    
+    # 2D Scatter Plots --------------------------------------------------------
+    
+    # Figure 1. a-e, a-i, om-i
+    fig, axs = plt.subplots(1,3,figsize=(16, 5))
+    # a,e
+    axs[0].plot(df.a,df.e,'.k',markersize=0.2)
+    axs[0].set_xlabel('Semi-major axis a (km)')
+    axs[0].set_ylabel('Eccentricity e')
+    axs[0].set_xlim([6000, 50000]) #
+    # a,i
+    axs[1].plot(df.a,df.i,'.k',markersize=0.2)
+    axs[1].set_xlabel('Semi-major axis a (km)')
+    axs[1].set_ylabel('Inclination i (deg)')
+    axs[1].set_xlim([6000, 50000]) #
+    # om,i
+    axs[2].plot(df.om,df.i,'.k',markersize=0.2)
+    axs[2].set_xlabel('Right ascension of Ascending Node om (deg)')
+    axs[2].set_ylabel('Inclination i (deg)')
+    plt.show()
+
+    
+    # Figure 2. 3D hx,hy,hz
+    plot_3d_scatter_numeric(df,'hx','hy','hz',color=None,
+                            xrange=[-120000,120000],
+                            yrange=[-120000,120000],
+                            zrange=[-50000,150000],
+                            aspectmode='cube',
+                            )
+    
+    
+    
+    # Figure 5. h-hz, PC1-PC2
+    # Figure 1. a-e, a-i, om-i
+    fig, axs = plt.subplots(1,2,figsize=(12, 5))
+    # a,e
+    axs[0].plot(df.h,df.hz,'.k',markersize=0.2)
+    axs[0].set_xlabel('Angular momentum magntiude $h$ ($km^{2}/s$)')
+    axs[0].set_ylabel('Angular momentum z-component $h_{z}$ ($km^{2}/s$)')
+    axs[0].set_xlim([50000, 150000]) #
+    axs[0].set_ylim([-50000, 150000]) #
+    # PC1-PC2
+    axs[1].plot(df.PC1,df.PC2,'.k',markersize=0.2)
+    axs[1].set_xlabel('PC1')
+    axs[1].set_ylabel('PC2')
+    axs[1].set_xlim([-50000, 150000]) #
+    axs[1].set_ylim([-100000, 100000]) #
+    # fig.tight_layout()
+    # plt.subplot_tool()
+    plt.subplots_adjust(wspace=0.3)
+    plt.show()
+    
+    
+    # PC 3D satter
+    plot_3d_scatter_numeric(df,'PC1','PC2','PC3',color=None,
+                            xrange=[-50000, 150000],
+                            yrange=[-100000, 100000],
+                            zrange=[-100000, 100000],
+                            aspectmode='cube',
+                        )
+    
+    return
+
+
+# Principal Component Analysis
+def analyze_principal_components():
+    
+    # Load data
+    df = load_satellites(group='all',compute_params=True,compute_pca=True)
+    
+    # Select features from dataset to include.
+    # Exclude orbital parameters, since they are linear combinations of 
+    # orbital elements
+    features = ['a','e','i','om','w','n','h','hx','hy','hz']
+    Xfull = df[features] # Extract feature data
+    
+    # Principal components
+    # Run PCA on all numeric orbital parameters
+    n_components = 10
+    pca = PCA(n_components)
+    pca.fit(Xfull)
+    PC = pca.transform(Xfull)
+        
+    
+    # Variance explained by each PC
+    pca.explained_variance_ratio_
+    # Feature importance
+    # PC1,PC2,PC3: 4.27367824e-01, 2.86265363e-01, 2.60351753e-01, 
+    # PC4,PC5,PC6: 2.21499988e-02, 3.86125358e-03, 2.54105655e-06, 
+    # PC7,PC8,PC9: 1.26163922e-06, 4.55552048e-09, 6.39255498e-10, 
+    # PC10: 5.17447310e-13
+    
+    # Plot of feature explaination
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.plot(np.arange(n_components)+1,np.cumsum(pca.explained_variance_ratio_)*100)
+    ax.set_xlabel('Number of components')
+    ax.set_ylabel('Explained variance (%)')
+    ax.set_xticks(np.arange(n_components))
+    plt.show()
+    
+    # Most of variance explained by first 3 comonents
+    # Drops off after that
+    
+    # Importance of each feature
+    # Contribution of each input feature to each output PC
+    # PC1: print(abs( pca.components_[0,:] ))
+    # 
+    # Main importance is contributed from
+    # 'a','h','hx','hy','hz' 
+    
+    # Format feature importance into a dataframe
+    labels = ['PC'+str(i+1) for i in range(n_components)]    
+    dffeatimp = pd.DataFrame(pca.components_.T,columns=labels)
+    dffeatimp.insert(0,'Feature',features)
+    dffeatimp.set_index('Feature',inplace=True)
+    
+    # Heatmap of feature importance
+    import seaborn as sns
+    sns.heatmap(dffeatimp.abs(), annot=True)
+    
+    return
+
+# Histograms
+def plot_histograms():
+    
+    # Load data
+    df = load_satellites(group='all',compute_params=True,compute_pca=True)
+    
+    # Plot the histograms in section 2.
+    
+    fig, axs = plt.subplots(2,3,figsize=(12, 8))
+    # Row 1: h,hz,a
+    # h
+    ax = axs[0,0]
+    ax.hist(df.h, bins=50,label='$a$ (km)')
+    ax.set_xlabel('$h$')
+    ax.set_ylabel('Frequency')
+    ax.set_yscale('log')
+    ax.set_ylim([0.1,1E5])
+    # hz
+    ax = axs[0,1]
+    ax.hist(df.hz, bins=50,label='$a$ (km)')
+    ax.set_xlabel('$h_{z}$')
+    ax.set_yscale('log')
+    ax.set_ylim([0.1,1E5])
+    # a
+    ax = axs[0,2]
+    ax.hist(df.a, bins=50,label='$a$ (km)')
+    ax.set_xlabel('$a$')
+    ax.set_yscale('log')
+    ax.set_ylim([0.1,1E5])
+    
+    # Row 2: PC1,PC2,PC3
+    # PC1
+    ax = axs[1,0]
+    ax.hist(df.PC1, bins=50,label='$a$ (km)')
+    ax.set_xlabel('$PC_{1}$')
+    ax.set_ylabel('Frequency')
+    ax.set_yscale('log')
+    ax.set_ylim([0.1,1E5])
+    # PC2
+    ax = axs[1,1]
+    ax.hist(df.PC2, bins=50,label='$a$ (km)')
+    ax.set_xlabel('$PC_{2}$')
+    ax.set_yscale('log')
+    ax.set_ylim([0.1,1E5])
+    # PC3
+    ax = axs[1,2]
+    ax.hist(df.PC3, bins=50,label='$a$ (km)')
+    ax.set_xlabel('$PC_{3}$')
+    ax.set_yscale('log')
+    ax.set_ylim([0.1,1E5])
+    plt.show()
+    
+    
+    # Plot 2d Histograms
+    
+    # Create a black and white color map where bad data (NaNs) are white
+    cmap = plt.cm.binary
+    
+    # h vs hz
+    Nx,Ny = 50,50
+    
+    # axs[0].set_xlim([50000, 150000]) #
+    # axs[0].set_ylim([-50000, 150000]) #
+    
+    
+    
+ 
+    # Use the image display function imshow() to plot the result
+    fig, axs = plt.subplots(1,2,figsize=(20, 8))
+    
+    # 1. h vs hz
+    # Extract data
+    x = df['h'].to_numpy()
+    y = df['hz'].to_numpy()
+    # Define bins
+    # binsx = np.linspace(min(x),max(x),Nx)
+    # binsy = np.linspace(min(y),max(y),Ny)
+    binsx = np.linspace(50000, 150000,Nx)
+    binsy = np.linspace(-50000, 150000,Ny)
+    # Compute and plot 2D histogram
+    H, xbins, ybins = np.histogram2d(x, y,bins=(binsx,binsy))
+    ax = axs[0]
+    im = ax.imshow(H.T, origin='lower',
+              extent=[xbins[0], xbins[-1], ybins[0], ybins[-1]],
+              # cmap=cmap, #interpolation='nearest',
+              norm=matplotlib.colors.LogNorm(),
+              cmap=plt.cm.gist_heat_r,
+              aspect='auto')
+    ax.set_xlabel('h')
+    ax.set_ylabel('hz')
+    ax.set_xlim(min(binsx), max(binsx))
+    ax.set_ylim(min(binsy), max(binsy))
+    plt.colorbar(im,ax=ax,label='Num per pixel')
+    
+    # 2. PC1 vs PV2
+    # Extract data
+    x = df['PC1'].to_numpy()
+    y = df['PC2'].to_numpy()
+    # Define bins
+    # binsx = np.linspace(min(x),max(x),Nx)
+    # binsy = np.linspace(min(y),max(y),Ny)
+    binsx = np.linspace(-50000, 150000,Nx)
+    binsy = np.linspace(-100000, 100000,Ny)
+    # Compute and plot 2D histogram
+    H, xbins, ybins = np.histogram2d(x, y,bins=(binsx,binsy))
+    ax = axs[1]
+    im = ax.imshow(H.T, origin='lower',
+              extent=[xbins[0], xbins[-1], ybins[0], ybins[-1]],
+              # cmap=cmap, #interpolation='nearest',
+              norm=matplotlib.colors.LogNorm(),
+              cmap=plt.cm.gist_heat_r,
+              aspect='auto')
+    ax.set_xlabel('PC1')
+    ax.set_ylabel('PC2')
+    ax.set_xlim(min(binsx), max(binsx))
+    ax.set_ylim(min(binsy), max(binsy))
+    plt.colorbar(im,ax=ax,label='Num per pixel')
+    plt.subplots_adjust(wspace=0.3)
+    
+    
+    return
 
 # Analysize density results
 def analyze_density_results():
     
     # Load data
     df = load_satellites(group='all',compute_params=True,compute_pca=True)
-    
     # Load in density results
     dfd = load_density_values()
-    
     # Merge
     df = pd.merge(df,dfd,how='left',on=['Name','NoradId'],suffixes=['','_norm'])
     
