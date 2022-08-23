@@ -506,6 +506,7 @@ def load_density_values():
 
 # Coordinate systems
 def explore_coordinates():
+    # Plots of the satellite catalog in different coordinate systems
     
     # Load data
     df = load_satellites(group='all',compute_params=True,compute_pca=True)
@@ -579,6 +580,7 @@ def explore_coordinates():
 
 # Principal Component Analysis
 def analyze_principal_components():
+    # Compute feature importance
     
     # Load data
     df = load_satellites(group='all',compute_params=True,compute_pca=True)
@@ -637,6 +639,12 @@ def analyze_principal_components():
 
 # Histograms
 def plot_histograms():
+    '''
+    Plot 1D and 2D histograms. Figures 7 & 8 in IAC paper.
+
+    '''
+    
+    # Plot 1D and 2D histograms
     
     # Load data
     df = load_satellites(group='all',compute_params=True,compute_pca=True)
@@ -694,11 +702,11 @@ def plot_histograms():
     cmap = plt.cm.binary
     
     # h vs hz
-    Nx,Ny = 50,50
+    # Nx,Ny = 50,50
+    Nx,Ny = 150,150
     
     # axs[0].set_xlim([50000, 150000]) #
     # axs[0].set_ylim([-50000, 150000]) #
-    
     
     
  
@@ -723,8 +731,8 @@ def plot_histograms():
               norm=matplotlib.colors.LogNorm(),
               cmap=plt.cm.gist_heat_r,
               aspect='auto')
-    ax.set_xlabel('h')
-    ax.set_ylabel('hz')
+    ax.set_xlabel('$h$')
+    ax.set_ylabel('$h_{z}$')
     ax.set_xlim(min(binsx), max(binsx))
     ax.set_ylim(min(binsy), max(binsy))
     plt.colorbar(im,ax=ax,label='Num per pixel')
@@ -754,6 +762,336 @@ def plot_histograms():
     plt.colorbar(im,ax=ax,label='Num per pixel')
     plt.subplots_adjust(wspace=0.3)
     
+    # # Row 2 - point distributions
+    # ax = axs[1,0]
+    # ax.plot(df.h,df.hz,'.k',markersize=0.2)
+    # ax.set_xlabel('$h$')
+    # ax.set_ylabel('$h_{z}$')
+    # ax.set_xlim([50000, 150000]) #
+    # ax.set_ylim([-50000, 150000]) #
+    # cb1 = plt.colorbar(im,ax=ax,label='Num per pixel')
+    # cb1.remove()
+    # # PC1-PC2
+    # ax = axs[1,1]
+    # ax.plot(df.PC1,df.PC2,'.k',markersize=0.2)
+    # ax.set_xlabel('PC1')
+    # ax.set_ylabel('PC2')
+    # ax.set_xlim([-50000, 150000]) #
+    # ax.set_ylim([-100000, 100000]) #
+    # cb2 = plt.colorbar(im,ax=ax,label='Num per pixel')
+    # cb2.remove()
+    
+    
+    return
+
+
+def analyze_plot_kde():
+    ''' 
+    Plot KDE examples in section 2.2.2
+    '''
+    
+    # Load data
+    df = load_satellites(group='all',compute_params=True,compute_pca=True)
+    # Load in density results
+    dfd = load_density_values()
+    # Merge
+    df = pd.merge(df,dfd,how='left',on=['Name','NoradId'],suffixes=['','_norm'])
+    
+    
+    
+    fig, axs = plt.subplots(2,2,figsize=(20, 8))
+    
+    # 1. h vs hz
+    Nx = 150
+    Ny = 150
+    # Normalized grid
+    bandwidth=0.004281332398719396 # CV optimal
+    bandwidth = 0.001
+    X = df[['h_norm','hz_norm']].to_numpy()
+    # xmin, xmax = (df['h_norm'].min(), df['h_norm'].max())
+    # ymin, ymax = (df['hz_norm'].min(), df['hz_norm'].max())
+    xmin, xmax = 0, 0.3 # Hardcoded
+    ymin, ymax = 0, 0.6 # Hardcoded
+    
+    Xgrid = np.vstack(map(np.ravel, np.meshgrid(np.linspace(xmin, xmax, Nx),
+                                            np.linspace(ymin, ymax, Ny)))).T
+    kde1 = KernelDensity(bandwidth=bandwidth, kernel='gaussian')
+    kde1 = kde1.fit(X)
+    # Evaluating at gridpoints
+    log_dens1 = kde1.score_samples(Xgrid)
+    log_dens1 = log_dens1.reshape((Ny, Nx))
+    del kde1
+    ax = axs[0,0]
+    im = ax.imshow(log_dens1, origin='lower',
+              extent=(xmin, xmax, ymin, ymax),
+              # cmap=cmap, #interpolation='nearest',
+              # norm=matplotlib.colors.LogNorm(),
+              cmap=plt.cm.gist_heat_r,
+               # vmin=df.p_hhz.min(), vmax=log_dens1.max(),
+               vmin=0,
+              aspect='auto')
+    ax.set_xlabel('$h$ (normalized)')
+    ax.set_ylabel('$h_{z}$ (normalized)')
+    ax.text(.1,.9,'h = 0.001',horizontalalignment='center',transform=ax.transAxes)
+    ax.set_xlim(xmin, xmax)
+    ax.set_ylim(ymin, ymax)
+    cax = plt.colorbar(im,ax=ax,label='Log-likelihood (h,hz)')
+    # Higher bandwidth
+    bandwidth = 0.01
+    kde1 = KernelDensity(bandwidth=bandwidth, kernel='gaussian')
+    kde1 = kde1.fit(X)
+    log_dens1 = kde1.score_samples(Xgrid)
+    log_dens1 = log_dens1.reshape((Ny, Nx))
+    ax = axs[1,0]
+    im = ax.imshow(log_dens1, origin='lower',
+              extent=(xmin, xmax, ymin, ymax),
+              # cmap=cmap, #interpolation='nearest',
+              # norm=matplotlib.colors.LogNorm(),
+              cmap=plt.cm.gist_heat_r,
+               # vmin=df.p_hhz.min(), vmax=log_dens1.max(),
+               vmin=0,
+              aspect='auto')
+    ax.set_xlabel('$h$ (normalized)')
+    ax.set_ylabel('$h_{z}$ (normalized)')
+    ax.text(.1,.9,'h = 0.01',horizontalalignment='center',transform=ax.transAxes)
+    ax.set_xlim(xmin, xmax)
+    ax.set_ylim(ymin, ymax)
+    cax = plt.colorbar(im,ax=ax,label='Log-likelihood (h,hz)')
+    
+    # 2. PC1 vs PC2
+    Nx = 150
+    Ny = 150
+    # Normalized grid
+    bandwidth=0.008858667904100823 # CV optimal
+    bandwidth=0.001
+    X = df[['PC1_norm','PC2_norm']].to_numpy()
+    # xmin, xmax = (df['PC1_norm'].min(), df['PC1_norm'].max())
+    # ymin, ymax = (df['PC2_norm'].min(), df['PC2_norm'].max())
+    xmin, xmax = 0, 0.4
+    ymin, ymax = 0.2, 0.8
+    # Evaluating at satellite points
+    Xgrid = np.vstack(map(np.ravel, np.meshgrid(np.linspace(xmin, xmax, Nx),
+                                            np.linspace(ymin, ymax, Ny)))).T   
+    kde2 = KernelDensity(bandwidth=bandwidth, kernel='gaussian')
+    kde2 = kde2.fit(X)
+    # Evaluating at gridpoints
+    log_dens2 = kde2.score_samples(Xgrid)
+    log_dens2 = log_dens2.reshape((Ny, Nx))
+    p_PC1PC2 = kde2.score_samples(X)
+    del kde2
+    ax = axs[0,1]
+    im = ax.imshow(log_dens2, origin='lower',
+              extent=(xmin, xmax, ymin, ymax),
+              # cmap=cmap, #interpolation='nearest',
+              # norm=matplotlib.colors.LogNorm(),
+              cmap=plt.cm.gist_heat_r,
+              # vmin=df.p_PC1PC2.min(), vmax=df.p_PC1PC2.max(),
+              vmin=0,
+              aspect='auto')
+    ax.set_xlabel('PC1 (normalized)')
+    ax.set_ylabel('PC2 (normalized)')
+    ax.text(.1,.9,'h = 0.001',horizontalalignment='center',transform=ax.transAxes)
+    ax.set_xlim(xmin, xmax)
+    ax.set_ylim(ymin, ymax)
+    cax2 = plt.colorbar(im,ax=ax,label='Log-likelihood (PC1,PC2)')
+    # Larger bandwidth
+    bandwidth = 0.01
+    kde2 = KernelDensity(bandwidth=bandwidth, kernel='gaussian')
+    kde2 = kde2.fit(X)
+    log_dens2 = kde2.score_samples(Xgrid)
+    log_dens2 = log_dens2.reshape((Ny, Nx))
+    ax = axs[1,1]
+    im = ax.imshow(log_dens2, origin='lower',
+              extent=(xmin, xmax, ymin, ymax),
+              # cmap=cmap, #interpolation='nearest',
+              # norm=matplotlib.colors.LogNorm(),
+              cmap=plt.cm.gist_heat_r,
+              # vmin=df.p_PC1PC2.min(), vmax=df.p_PC1PC2.max(),
+              vmin=0,
+              aspect='auto')
+    ax.set_xlabel('PC1 (normalized)')
+    ax.set_ylabel('PC2 (normalized)')
+    ax.text(.1,.9,'h = 0.01',horizontalalignment='center',transform=ax.transAxes)
+    ax.set_xlim(xmin, xmax)
+    ax.set_ylim(ymin, ymax)
+    cax2 = plt.colorbar(im,ax=ax,label='Log-likelihood (PC1,PC2)')
+    
+    return
+
+def plot_cv_optimal():
+    # Plot results of the optimal bandwidth from cross validation.
+    
+    # Base directory
+    data_dir = get_data_home()/"DIT_Experiments"/"KDE"/"CV" # Base directory
+    
+    # 1. h vs hz
+    
+    
+    
+    # Plot results
+    fig, ax = plt.subplots(1,1,figsize=(8, 8))
+    
+    # h vs hz
+    filename = data_dir/'Inputs_hhz_gauss_results.csv'
+    dfresults = pd.read_csv(filename)
+    x = dfresults.param_bandwidth # x
+    y = dfresults.mean_test_score
+    dy = dfresults.std_test_score # Error in y
+    ax.plot(x,y,'-b',label='h,hz')
+    # plt.fill_between(x, y-dy, y+dy,color='gray', alpha=0.2)
+    
+    # PC1 vs PC2
+    filename = data_dir/'Inputs_PC1PC2_gauss_results.csv'
+    dfresults = pd.read_csv(filename)
+    x = dfresults.param_bandwidth # x
+    y = dfresults.mean_test_score
+    dy = dfresults.std_test_score # Error in y
+    ax.plot(x,y,'-r',label='PC1,PC2')
+    
+    # hx,hy,hz
+    filename = data_dir/'Inputs_hxhyhz_gauss_results.csv'
+    dfresults = pd.read_csv(filename)
+    x = dfresults.param_bandwidth # x
+    y = dfresults.mean_test_score
+    dy = dfresults.std_test_score # Error in y
+    ax.plot(x,y,'-g',label='hx,hy,hz')
+    
+    # PC1,PC2,PC3
+    filename = data_dir/'Inputs_PC1PC2PC3_gauss_results.csv'
+    dfresults = pd.read_csv(filename)
+    x = dfresults.param_bandwidth # x
+    y = dfresults.mean_test_score
+    dy = dfresults.std_test_score # Error in y
+    ax.plot(x,y,'-k',label='PC1,PC2,PC3')
+    
+    ax.set_xlabel('bandwidth')
+    ax.set_ylabel('score (total log-likelihood)')
+    ax.set_yscale('log')
+    ax.set_xscale('log')
+    plt.legend(loc='upper right')
+    plt.show()
+    
+    
+    
+    return
+
+
+# Explore Clusters
+def explore_clusters():
+    
+    # Load data
+    df = load_satellites(group='all',compute_params=True,compute_pca=True)
+    # Load in density results
+    dfd = load_density_values()
+    # Merge
+    df = pd.merge(df,dfd,how='left',on=['Name','NoradId'],suffixes=['','_norm'])
+    
+    # Assign density category based on log-likelihood
+    df['Density_Tier'] = ''
+    df['Density_Tier'][df.p_PC1PC2PC3 <= 4] = 'Low' # Low density
+    df['Density_Tier'][(df.p_PC1PC2PC3 > 4) & (df.p_PC1PC2PC3 <=6.5)] = 'Med' # medium density
+    df['Density_Tier'][df.p_PC1PC2PC3 > 6.5] = 'High' # High density
+    df['Density_Tier'] = df['Density_Tier'].astype("category")
+    df['Density_Tier'] = df['Density_Tier'].cat.set_categories(['Low','Med','High'], ordered=True)
+    
+    
+    # Perform K-means clustering on High density subset
+    from sklearn.cluster import KMeans
+    df1 = df[df['Density_Tier'] == 'High'] 
+    X = df1[['h_norm','hz_norm']].to_numpy()
+    n_clusters = 9
+    km = KMeans(n_clusters, random_state=170).fit(X)
+    # Get labels
+    y_pred = km.fit_predict(X)
+    df1['Cluster'] = y_pred
+    
+    # Merge back into dataframe
+    df = pd.merge(df,df1[['Name','NoradId','Cluster']],how='left',on=['Name','NoradId'])
+    
+    
+    # Generate clusters
+    label = 'test_clusters' # Field name holding clusters
+    features = ['PC1','PC2','PC3','PC4']   # Fields to use in clustering 
+    df = generate_Kmeans_clusters(df,label,features,n_clusters=5,random_state=170)
+    
+    pdb.set_trace()
+    
+    # Angular Momentum Space
+    plot_3d_scatter_numeric(df,'hx_norm','hy_norm','hz_norm',color='p_PC1PC2PC3',
+                            logColor=False,colorscale='Blackbody_r',
+                            xrange=[0,0.8],
+                            yrange=[0.2,1],
+                            zrange=[0,0.8],
+                            filename = 'p_PC1PC2PC3.html')
+    
+    # 3D Scatter of Density Tiers
+    colors = [px.colors.sequential.Blackbody_r[0],
+              px.colors.sequential.Blackbody_r[2],
+              px.colors.sequential.Blackbody_r[4]]
+    # List of satellties
+    # df[df.Name == 'COSMOS 1408']['hx_norm'].iloc[0]
+    annotations=[
+            dict(
+                showarrow=True,
+                x=df[df.Name == 'COSMOS 1408']['hx_norm'].iloc[0],#0.48728,
+                y=df[df.Name == 'COSMOS 1408']['hy_norm'].iloc[0], #0.533443,
+                z=df[df.Name == 'COSMOS 1408']['hz_norm'].iloc[0],#0.226794,
+                text="COSMOS 1408 DEB",
+                xanchor="right",
+                ax=-100,
+                opacity=0.7,
+                arrowcolor="black",arrowsize=3,arrowwidth=1,arrowhead=0
+                ),
+            dict(
+                showarrow=True,
+                x=df['hx_norm'][df.NoradId==40239].iloc[0],
+                y=df['hy_norm'][df.NoradId==40239].iloc[0],
+                z=df['hz_norm'][df.NoradId==40239].iloc[0],
+                text="COSMOS 2251 DEB",
+                xanchor="right",
+                ax=-100,
+                ay=-50,
+                opacity=0.7,
+                arrowcolor="black",arrowsize=3,arrowwidth=1,arrowhead=0
+                ),
+            dict(
+                showarrow=True,
+                x=0.67,
+                y=0.71,
+                z=0.19,
+                text='FENGYUN 1C DEB',
+                xanchor="left",
+                ax=100,
+                ay=50,
+                opacity=0.7,
+                arrowcolor="black",arrowsize=3,arrowwidth=1,arrowhead=0
+                ),
+        ]
+    plot_3d_scatter_cat(df,'hx_norm','hy_norm','hz_norm', 'Density_Tier',
+                        color_discrete_sequence = colors,
+                        xrange=[0,0.8],
+                        yrange=[0.2,1],
+                        zrange=[0,0.8],
+                        annotations=annotations,
+                        )
+    
+    
+    # 3D Scatter plot of Clusters
+    plot_3d_scatter_cat(df,'hx_norm','hy_norm','hz_norm', 'Cluster',
+                        # color_discrete_sequence = colors,
+                        xrange=[0,0.8],
+                        yrange=[0.2,1],
+                        zrange=[0,0.8],)
+    
+    
+    # # 2D Scatter plot
+    # plot_2d_scatter_cat(df,'h_norm','hz_norm','Cluster',
+    #                     # color_discrete_sequence = colors,
+    #                     # xrange=[0,0.8],
+    #                     # yrange=[0.2,1],
+    #                     # zrange=[0,0.8],
+    #                     )
+    
     
     return
 
@@ -777,7 +1115,13 @@ def analyze_density_results():
     # 1. Investigate the distribution of values in each -----------------------
     # Also the correlation between the values 
     
+    bandwidth_aei = 0.006158482110660267
+    bandwidth = 0.008858667904100823 # Bandwidth of kernel (h and PCs)
+    N = len(df) # Number of points
+    
+    
     # Histograms matplotlib
+    # log-likelihood
     fig, axs = plt.subplots(3,1,figsize=(8, 8))
     axs[0].hist(df.p_aei, bins=50,label='Orbital Elements')
     axs[0].set_xlabel('Log-likelihood (a,e,i)')
@@ -787,18 +1131,37 @@ def analyze_density_results():
     axs[2].set_xlabel('Log-likelihood (PC1,PC2,PC3)')
     plt.show()
     
-    # Show correlation between PCA and Angular Momentum
-    fig, ax = plt.subplots(figsize=(8, 8))
-    ax.plot(df.p_PC1PC2PC3,df.p_hxhyhz,'.k',markersize=0.2)
-    ax.set_xlabel('Log-likelihood (PC1,PC2,PC3)')
-    ax.set_ylabel('Log-likelihood (hx,hy,hz)')
-    plt.show()
+    # # Likelihood (x on log scale.)
+    # bins = 10 ** np.linspace(0, 10, 50)
+    # fig, axs = plt.subplots(3,1,figsize=(8, 8))
+    # axs[0].hist(10**(df.p_aei), bins=bins,label='Orbital Elements')
+    # axs[0].set_xscale('log')
+    # bins = 10 ** np.linspace(0, 8, 50)
+    # # axs[0].set_yscale('log')
+    # axs[0].set_xlabel('Density (a,e,i)')
+    # axs[1].hist(10**(df.p_hxhyhz), bins=bins,label='Angular Momentum')
+    # axs[1].set_xscale('log')
+    # # axs[1].set_yscale('log')
+    # axs[1].set_xlabel('Density (hx,hy,hz)')
+    # axs[2].hist(10**(df.p_PC1PC2PC3), bins=bins,label='Principal Components')
+    # axs[2].set_xscale('log')
+    # # axs[2].set_yscale('log')
+    # axs[2].set_xlabel('Density (PC1,PC2,PC3)')
+    # plt.show()
     
-    fig, ax = plt.subplots(figsize=(8, 8))
-    ax.plot(df.p_PC1PC2PC3,df.p_aei,'.k',markersize=0.2)
-    ax.set_xlabel('Log-likelihood (PC1,PC2,PC3)')
-    ax.set_ylabel('Log-likelihood (a,e,i)')
-    plt.show()
+    
+    # # Show correlation between PCA and Angular Momentum
+    # fig, ax = plt.subplots(figsize=(8, 8))
+    # ax.plot(df.p_PC1PC2PC3,df.p_hxhyhz,'.k',markersize=0.2)
+    # ax.set_xlabel('Log-likelihood (PC1,PC2,PC3)')
+    # ax.set_ylabel('Log-likelihood (hx,hy,hz)')
+    # plt.show()
+    
+    # fig, ax = plt.subplots(figsize=(8, 8))
+    # ax.plot(df.p_PC1PC2PC3,df.p_aei,'.k',markersize=0.2)
+    # ax.set_xlabel('Log-likelihood (PC1,PC2,PC3)')
+    # ax.set_ylabel('Log-likelihood (a,e,i)')
+    # plt.show()
     
     
 
@@ -807,21 +1170,21 @@ def analyze_density_results():
     #2. Plot the distribution of points and measures of their density ---------
     # Plot 3D scatter plots
     
-    # Orbital Element Space
-    plot_3d_scatter_numeric(df,'a_norm','e_norm','i_norm',color='p_aei',
-                            logColor=False,colorscale='Blackbody_r',
-                            xrange=[0,0.15],
-                            filename = 'p_aei.html')
+    # # Orbital Element Space
+    # plot_3d_scatter_numeric(df,'a_norm','e_norm','i_norm',color='p_aei',
+    #                         logColor=False,colorscale='Blackbody_r',
+    #                         xrange=[0,0.15],
+    #                         filename = 'p_aei.html')
 
     
     
-    # Angular Momentum Space
-    plot_3d_scatter_numeric(df,'hx_norm','hy_norm','hz_norm',color='p_hxhyhz',
-                            logColor=False,colorscale='Blackbody_r',
-                            xrange=[0,0.8],
-                            yrange=[0.2,1],
-                            zrange=[0,0.8],
-                            filename = 'p_hxhyhz.html')
+    # # Angular Momentum Space
+    # plot_3d_scatter_numeric(df,'hx_norm','hy_norm','hz_norm',color='p_hxhyhz',
+    #                         logColor=False,colorscale='Blackbody_r',
+    #                         xrange=[0,0.8],
+    #                         yrange=[0.2,1],
+    #                         zrange=[0,0.8],
+    #                         filename = 'p_hxhyhz.html')
     
     # plot_3d_scatter_numeric(df,'h','om','i',color='p_hxhyhz',
     #                             logColor=False,colorscale='Blackbody_r',
