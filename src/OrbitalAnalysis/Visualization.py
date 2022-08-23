@@ -492,7 +492,7 @@ def plot_3d_scatter_numeric(df,xlabel,ylabel,zlabel,color=None,
         
         # Axes
         if xrange != [None,None]:
-            fig.update_yaxes(range = xrange)
+            # fig.update_yaxes(range = xrange)
             xaxis=go.layout.scene.XAxis(title=xlabel,gridcolor='white',gridwidth=1,range=xrange)
         else:
             xaxis=go.layout.scene.XAxis(title=xlabel,gridcolor='white',gridwidth=1)
@@ -534,7 +534,12 @@ def plot_3d_scatter_numeric(df,xlabel,ylabel,zlabel,color=None,
     
     return
 
-def plot_3d_scatter_cat(df,xlabel,ylabel,zlabel, cat):
+def plot_3d_scatter_cat(df,xlabel,ylabel,zlabel, cat, cat_order=None,
+                        xrange=[None,None],yrange=[None,None],zrange=[None,None],
+                        color_discrete_sequence=None,
+                        aspectmode='auto',
+                        annotations=None,
+                        filename='temp-plot.html'):
     '''
     Plot the catalog of objects in angular momentum space.
     Color by a categorical parameter
@@ -554,7 +559,20 @@ def plot_3d_scatter_cat(df,xlabel,ylabel,zlabel, cat):
     
     # Extract region data
     from natsort import natsorted
-    region_names = natsorted(list(df[cat].unique())) # Names of regions
+    
+    #Get region names
+    if cat_order is None:
+        if df[cat].dtype.name == 'category':
+            # Categorical value. Get region names from categories.
+            region_names = list(df.Density_Tier.cat.categories)
+        else:
+            # String type. Order alphabetically.
+            region_names = natsorted(list(df[cat].unique())) # Names of regions
+    else:
+        # Category order is specified
+        region_names = cat_order
+        
+    
     # Ensure region names are strings
     region_names = [str(x) for x in region_names]
     df[cat] = df[cat].astype(str)
@@ -562,23 +580,34 @@ def plot_3d_scatter_cat(df,xlabel,ylabel,zlabel, cat):
     region_data = {region:df.query(cat+" == '%s'" %region) for region in region_names}
     
     # Add traces
+    i = -1 # Index
     for region_name, region in region_data.items():
+        
+        i += 1 # Increment index at start
         
         # Get the coordinates
         x = region[xlabel]
         y = region[ylabel]
         z = region[zlabel]
         
+        # Get color
+        if color_discrete_sequence is None:
+            color = None
+        else:
+            color = color_discrete_sequence[i] # Extract ith color
+            
+        
         fig.add_trace(go.Scatter3d(
                             x=x,
                             y=y,
                             z=z,
                             name = region_name,
-                            customdata=region[['Name','a','e','i','om','w']],
+                            customdata=region[['Name','a','e','i','om','w','NoradId']],
                             hovertext = region['Name'],
                             hoverinfo = 'text+x+y+z',
                             hovertemplate=
                                 "<b>%{customdata[0]}</b><br><br>" +
+                                "NoradId: %{customdata[6]}<br>" +
                                 "hx: %{x:.2f}<br>" +
                                 "hy: %{y:.2f}<br>" +
                                 "hz: %{z:.2f}<br>" +
@@ -591,6 +620,7 @@ def plot_3d_scatter_cat(df,xlabel,ylabel,zlabel, cat):
                             mode=mode,
                             marker=dict(
                                 size=1,
+                                color=color,
                                 # color = color_dict[region_name],
                                 opacity=0.8,
                                 # colorbar=dict(thickness=20,title=cat)
@@ -598,21 +628,54 @@ def plot_3d_scatter_cat(df,xlabel,ylabel,zlabel, cat):
                         )
             )
     
+    # Axes
+    if xrange != [None,None]:
+        # fig.update_yaxes(range = xrange)
+        xaxis=go.layout.scene.XAxis(title=xlabel,gridcolor='white',gridwidth=1,range=xrange)
+    else:
+        xaxis=go.layout.scene.XAxis(title=xlabel,gridcolor='white',gridwidth=1)
+    if yrange != [None,None]:
+        yaxis=go.layout.scene.YAxis(title=ylabel,gridcolor='white',gridwidth=1,range=yrange)
+    else:
+        yaxis=go.layout.scene.YAxis(title=ylabel,gridcolor='white',gridwidth=1)
+    if zrange != [None,None]:
+        zaxis=go.layout.scene.ZAxis(title=zlabel,gridcolor='white',gridwidth=1,range=zrange)
+    else:
+        zaxis=go.layout.scene.ZAxis(title=zlabel,gridcolor='white',gridwidth=1)
+
     # Update figure title and layout
     fig.update_layout(
         # title='2D Scatter',
         title_x = 0.5,
         scene=go.layout.Scene(
-                xaxis=go.layout.scene.XAxis(title=xlabel,gridcolor='white',gridwidth=1),
-                yaxis=go.layout.scene.YAxis(title=ylabel,gridcolor='white',gridwidth=1),
-                zaxis=go.layout.scene.ZAxis(title=zlabel,gridcolor='white',gridwidth=1),
-                # aspectmode='data',
-            ),
+            xaxis=xaxis,
+            yaxis=yaxis,
+            zaxis=zaxis,
+            aspectmode=aspectmode,
+            annotations=annotations,
+        ),
         # paper_bgcolor='rgb(243, 243, 243)',
         # plot_bgcolor='rgb(243, 243, 243)',
         # paper_bgcolor='rgb(0, 0, 0)',
         # plot_bgcolor='rgb(0, 0, 0)',
+        margin=dict(l=20, r=20, t=20, b=20)
         )
+    
+    # # Update figure title and layout
+    # fig.update_layout(
+    #     # title='2D Scatter',
+    #     title_x = 0.5,
+    #     scene=go.layout.Scene(
+    #             xaxis=go.layout.scene.XAxis(title=xlabel,gridcolor='white',gridwidth=1),
+    #             yaxis=go.layout.scene.YAxis(title=ylabel,gridcolor='white',gridwidth=1),
+    #             zaxis=go.layout.scene.ZAxis(title=zlabel,gridcolor='white',gridwidth=1),
+    #             # aspectmode='data',
+    #         ),
+    #     # paper_bgcolor='rgb(243, 243, 243)',
+    #     # plot_bgcolor='rgb(243, 243, 243)',
+    #     # paper_bgcolor='rgb(0, 0, 0)',
+    #     # plot_bgcolor='rgb(0, 0, 0)',
+    #     )
     
     # Update figure layout
     fig.update_layout(legend=dict(
@@ -776,6 +839,171 @@ def plot_2d_scatter_numeric(df,xlabel,ylabel,color,logColor=False,size=1.):
     plotly.offline.plot(fig, validate=False, filename='Scatter.html')
     
     
+    return
+
+def plot_2d_scatter_cat(df,xlabel,ylabel,cat, cat_order=None,
+                        xrange=[None,None],yrange=[None,None],
+                        color_discrete_sequence=None,
+                        aspectmode='auto',
+                        filename='temp-plot.html'):
+    '''
+    Plot the catalog of objects in angular momentum space.
+    Color by a categorical parameter
+    
+    '''
+    
+    import plotly.graph_objects as go
+    import plotly
+    
+    # Check if data is timeseries (from multiple months)
+    timeseries = False
+    filename = '3DScatterCat.html'
+    mode = 'markers'
+    
+    # Create figure
+    fig = go.Figure()
+    
+    # Extract region data
+    from natsort import natsorted
+    
+    #Get region names
+    if cat_order is None:
+        if df[cat].dtype.name == 'category':
+            # Categorical value. Get region names from categories.
+            region_names = list(df.Density_Tier.cat.categories)
+        else:
+            # String type. Order alphabetically.
+            region_names = natsorted(list(df[cat].unique())) # Names of regions
+    else:
+        # Category order is specified
+        region_names = cat_order
+        
+    
+    # Ensure region names are strings
+    region_names = [str(x) for x in region_names]
+    df[cat] = df[cat].astype(str)
+    
+    region_data = {region:df.query(cat+" == '%s'" %region) for region in region_names}
+    
+    # Add traces
+    i = -1 # Index
+    for region_name, region in region_data.items():
+        
+        i += 1 # Increment index at start
+        
+        # Get the coordinates
+        x = region[xlabel]
+        y = region[ylabel]
+        
+        # Get color
+        if color_discrete_sequence is None:
+            color = None
+        else:
+            color = color_discrete_sequence[i] # Extract ith color
+            
+        
+        fig.add_trace(go.Scattergl(
+                            x=x,
+                            y=y,
+                            name = region_name,
+                            customdata=region[['Name','a','e','i','om','w','h','hx','hy','hz']],
+                            hovertext = region['Name'],
+                            hoverinfo = 'text+x+y+z',
+                            hovertemplate=
+                                "<b>%{customdata[0]}</b><br><br>" +
+                                "x: %{x:.2f}<br>" +
+                                "y: %{y:.2f}<br>" +
+                                "a: %{customdata[1]:.2f} km<br>" +
+                                "e: %{customdata[2]:.2f}<br>" +
+                                "i: %{customdata[3]:.2f} deg<br>" +
+                                "om: %{customdata[4]:.2f} deg<br>" +
+                                "w: %{customdata[5]:.2f} deg<br>" +
+                                "h: %{customdata[6]:.2f}<br>" +
+                                "hx: %{customdata[7]:.2f}<br>" +
+                                "hy: %{customdata[8]:.2f}<br>" +
+                                "hz: %{customdata[9]:.2f}<br>" +
+                                "",
+                            mode=mode,
+                            marker=dict(
+                                size=1,
+                                color=color,
+                                # color = color_dict[region_name],
+                                opacity=0.8,
+                                # colorbar=dict(thickness=20,title=cat)
+                            ),
+                        )
+            )
+    
+    # Axes
+    if xrange != [None,None]:
+        # fig.update_yaxes(range = xrange)
+        xaxis=go.layout.scene.XAxis(title=xlabel,gridcolor='white',gridwidth=1,range=xrange)
+    else:
+        xaxis=go.layout.scene.XAxis(title=xlabel,gridcolor='white',gridwidth=1)
+    if yrange != [None,None]:
+        yaxis=go.layout.scene.YAxis(title=ylabel,gridcolor='white',gridwidth=1,range=yrange)
+    else:
+        yaxis=go.layout.scene.YAxis(title=ylabel,gridcolor='white',gridwidth=1)
+    
+    # Update figure title and layout
+    fig.update_layout(
+        # title='2D Scatter',
+        title_x = 0.5,
+        scene=go.layout.Scene(
+            xaxis=xaxis,
+            yaxis=yaxis,
+            aspectmode=aspectmode,
+        ),
+        # paper_bgcolor='rgb(243, 243, 243)',
+        # plot_bgcolor='rgb(243, 243, 243)',
+        # paper_bgcolor='rgb(0, 0, 0)',
+        # plot_bgcolor='rgb(0, 0, 0)',
+        margin=dict(l=20, r=20, t=20, b=20)
+        )
+    
+    # # Update figure title and layout
+    # fig.update_layout(
+    #     # title='2D Scatter',
+    #     title_x = 0.5,
+    #     scene=go.layout.Scene(
+    #             xaxis=go.layout.scene.XAxis(title=xlabel,gridcolor='white',gridwidth=1),
+    #             yaxis=go.layout.scene.YAxis(title=ylabel,gridcolor='white',gridwidth=1),
+    #             zaxis=go.layout.scene.ZAxis(title=zlabel,gridcolor='white',gridwidth=1),
+    #             # aspectmode='data',
+    #         ),
+    #     # paper_bgcolor='rgb(243, 243, 243)',
+    #     # plot_bgcolor='rgb(243, 243, 243)',
+    #     # paper_bgcolor='rgb(0, 0, 0)',
+    #     # plot_bgcolor='rgb(0, 0, 0)',
+    #     )
+    
+    # Update figure layout
+    fig.update_layout(legend=dict(
+                        title='Category: {}'.format(cat),
+                        itemsizing='constant',
+                        itemdoubleclick="toggleothers",
+                        # yanchor="top",
+                        # y=0.99,
+                        # xanchor="right",
+                        # x=0.01,
+                    ))
+    
+    # # Update ranges
+    # fig.update_layout(
+    #     scene = dict(
+    #         xaxis = dict(nticks=4, range=[-20*1E4,20*1E4],),
+    #         yaxis = dict(nticks=4, range=[-20*1E4,20*1E4],),
+    #         zaxis = dict(nticks=4, range=[-20*1E4,20*1E4],),
+    #         aspectmode = 'cube',
+    #         ),
+    #     # width=700,
+    #     # margin=dict(r=20, l=10, b=10, t=10)
+    #     )
+        
+    # Render
+    plotly.offline.plot(fig, validate=False, filename=filename)
+
+
     return
 
 
