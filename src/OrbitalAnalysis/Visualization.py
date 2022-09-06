@@ -390,9 +390,11 @@ def plot_h_space_cat(df,cat='vishnu_cluster'):
 
 def plot_3d_scatter_numeric(df,xlabel,ylabel,zlabel,color=None,
                             logColor=False,colorscale='Blackbody',
+                            color_label=None,
                             xrange=[None,None],yrange=[None,None],zrange=[None,None],
                             aspectmode='auto',
-                            filename='temp-plot.html'):
+                            filename='temp-plot.html',
+                            render=True):
     '''
     Plot the catalog of objects in angular 3D coordinates.
     Color by a numeric parameter.
@@ -421,11 +423,13 @@ def plot_3d_scatter_numeric(df,xlabel,ylabel,zlabel,color=None,
         # Select color data
         if color is not None:
             c = df[color]
-            color_label = color
+            if color_label is None:
+                color_label = color
             if logColor == True:
                 # Log of color
                 c = np.log10(c)
-                color_label = 'log('+color+')'
+                if color_label is None:
+                    color_label = 'log('+color+')'
             
         # Select x,y,z data
         x = df[xlabel]
@@ -486,9 +490,13 @@ def plot_3d_scatter_numeric(df,xlabel,ylabel,zlabel,color=None,
                                     color=c,             # set color to an array/list of desired values
                                     colorscale=colorscale,   # choose a colorscale 'Viridis'
                                     opacity=0.8,
-                                    colorbar=dict(thickness=20,title=color_label)
+                                    colorbar=dict(thickness=20,
+                                                  title=color_label,
+                                                  lenmode='fraction', len=0.75)
                                 ),
                             )])
+        
+        fig.data[0].marker.colorbar.titleside = 'right'
         
         # Axes
         if xrange != [None,None]:
@@ -529,8 +537,11 @@ def plot_3d_scatter_numeric(df,xlabel,ylabel,zlabel,color=None,
         
         
         # Render
-        plotly.offline.plot(fig, validate=False, filename=filename)
-        
+        if render:
+            plotly.offline.plot(fig, validate=False, filename=filename)
+        else:
+            # No rendering. Return the figure.
+            return fig       
     
     return
 
