@@ -518,7 +518,7 @@ def explore_coordinates():
     # 2D Scatter Plots --------------------------------------------------------
     
     # Figure 1. a-e, a-i, om-i
-    fig, axs = plt.subplots(1,3,figsize=(16, 5))
+    fig, axs = plt.subplots(3,1,figsize=(16, 5))
     # a,e
     axs[0].plot(df.a,df.e,'.k',markersize=0.2)
     axs[0].set_xlabel('Semi-major axis a (km)')
@@ -548,7 +548,7 @@ def explore_coordinates():
     
     # Figure 5. h-hz, PC1-PC2
     # Figure 1. a-e, a-i, om-i
-    fig, axs = plt.subplots(1,2,figsize=(12, 5))
+    fig, axs = plt.subplots(2,1,figsize=(12, 5))
     # a,e
     axs[0].plot(df.h,df.hz,'.k',markersize=0.2)
     axs[0].set_xlabel('Angular momentum magntiude $h$ ($km^{2}/s$)')
@@ -608,7 +608,7 @@ def analyze_principal_components():
     # PC10: 5.17447310e-13
     
     # Plot of feature explaination
-    fig, ax = plt.subplots(figsize=(8, 8))
+    fig1, ax = plt.subplots(figsize=(8, 8))
     ax.plot(np.arange(n_components)+1,np.cumsum(pca.explained_variance_ratio_)*100)
     ax.set_xlabel('Number of components')
     ax.set_ylabel('Explained variance (%)')
@@ -631,9 +631,9 @@ def analyze_principal_components():
     dffeatimp.insert(0,'Feature',features)
     dffeatimp.set_index('Feature',inplace=True)
     
-    # Heatmap of feature importance
-    import seaborn as sns
-    sns.heatmap(dffeatimp.abs(), annot=True)
+    # # Heatmap of feature importance
+    # import seaborn as sns
+    # sns.heatmap(dffeatimp.abs(), annot=True)
     
     return
 
@@ -651,7 +651,7 @@ def plot_histograms():
     
     # Plot the histograms in section 2.
     
-    fig, axs = plt.subplots(2,3,figsize=(12, 8))
+    fig, axs = plt.subplots(2,3,figsize=(16,8))  # (8,16)
     # Row 1: h,hz,a
     # h
     ax = axs[0,0]
@@ -664,16 +664,18 @@ def plot_histograms():
     ax = axs[0,1]
     ax.hist(df.hz, bins=50,label='$a$ (km)')
     ax.set_xlabel('$h_{z}$')
+    # ax.set_ylabel('Frequency')
     ax.set_yscale('log')
     ax.set_ylim([0.1,1E5])
     # a
     ax = axs[0,2]
     ax.hist(df.a, bins=50,label='$a$ (km)')
     ax.set_xlabel('$a$')
+    # ax.set_ylabel('Frequency')
     ax.set_yscale('log')
     ax.set_ylim([0.1,1E5])
     
-    # Row 2: PC1,PC2,PC3
+    # Column 2: PC1,PC2,PC3
     # PC1
     ax = axs[1,0]
     ax.hist(df.PC1, bins=50,label='$a$ (km)')
@@ -711,7 +713,7 @@ def plot_histograms():
     
  
     # Use the image display function imshow() to plot the result
-    fig, axs = plt.subplots(1,2,figsize=(20, 8))
+    fig, axs = plt.subplots(2,1,figsize=(8, 20))
     
     # 1. h vs hz
     # Extract data
@@ -1081,7 +1083,8 @@ def explore_clusters():
                         # color_discrete_sequence = colors,
                         xrange=[0,0.8],
                         yrange=[0.2,1],
-                        zrange=[0,0.8],)
+                        zrange=[0,0.8],
+                        filename = 'DensityTiers.html')
     
     
     # # 2D Scatter plot
@@ -1105,6 +1108,9 @@ def analyze_density_results():
     # Merge
     df = pd.merge(df,dfd,how='left',on=['Name','NoradId'],suffixes=['','_norm'])
     
+    # Process Identifiability metric from p_hxhyhz
+    df['I'] = 1 - (df.p_hxhyhz - df.p_hxhyhz.min())/(df.p_hxhyhz.max() - df.p_hxhyhz.min() )    
+    
     # Histograms of values (plotly)
     # fig = go.Figure(data=[go.Histogram(x=df.p_PC1PC2PC3)]) # PC1
     # fig.add_trace(go.Histogram(x=df['p_hxhyhz'],))
@@ -1112,50 +1118,20 @@ def analyze_density_results():
     # fig.add_trace(go.Histogram(x=df['p_aei'],))
     # plotly.offline.plot(fig)
     
-    # 1. Investigate the distribution of values in each -----------------------
-    # Also the correlation between the values 
-    
-    bandwidth_aei = 0.006158482110660267
-    bandwidth = 0.008858667904100823 # Bandwidth of kernel (h and PCs)
-    N = len(df) # Number of points
     
     
-    # Histograms matplotlib
-    # log-likelihood
-    fig, axs = plt.subplots(3,1,figsize=(8, 8))
-    axs[0].hist(df.p_aei, bins=50,label='Orbital Elements')
-    axs[0].set_xlabel('Log-likelihood (a,e,i)')
-    axs[1].hist(df.p_hxhyhz, bins=50,label='Angular Momentum')
-    axs[1].set_xlabel('Log-likelihood (hx,hy,hz)')
-    axs[2].hist(df.p_PC1PC2PC3, bins=50,label='Principal Components')
-    axs[2].set_xlabel('Log-likelihood (PC1,PC2,PC3)')
+    # Correlation
+    # Find r2 of correlation between angular momentum and principal components
+    
+    from sklearn.metrics import r2_score
+    r2 = r2_score(df.p_PC1PC2PC3, df.p_hxhyhz)
+
+    # Show correlation between PCA and Angular Momentum
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.plot(df.p_PC1PC2PC3,df.p_hxhyhz,'.k',markersize=0.2)
+    ax.set_xlabel('Log-likelihood (PC1,PC2,PC3)')
+    ax.set_ylabel('Log-likelihood (hx,hy,hz)')
     plt.show()
-    
-    # # Likelihood (x on log scale.)
-    # bins = 10 ** np.linspace(0, 10, 50)
-    # fig, axs = plt.subplots(3,1,figsize=(8, 8))
-    # axs[0].hist(10**(df.p_aei), bins=bins,label='Orbital Elements')
-    # axs[0].set_xscale('log')
-    # bins = 10 ** np.linspace(0, 8, 50)
-    # # axs[0].set_yscale('log')
-    # axs[0].set_xlabel('Density (a,e,i)')
-    # axs[1].hist(10**(df.p_hxhyhz), bins=bins,label='Angular Momentum')
-    # axs[1].set_xscale('log')
-    # # axs[1].set_yscale('log')
-    # axs[1].set_xlabel('Density (hx,hy,hz)')
-    # axs[2].hist(10**(df.p_PC1PC2PC3), bins=bins,label='Principal Components')
-    # axs[2].set_xscale('log')
-    # # axs[2].set_yscale('log')
-    # axs[2].set_xlabel('Density (PC1,PC2,PC3)')
-    # plt.show()
-    
-    
-    # # Show correlation between PCA and Angular Momentum
-    # fig, ax = plt.subplots(figsize=(8, 8))
-    # ax.plot(df.p_PC1PC2PC3,df.p_hxhyhz,'.k',markersize=0.2)
-    # ax.set_xlabel('Log-likelihood (PC1,PC2,PC3)')
-    # ax.set_ylabel('Log-likelihood (hx,hy,hz)')
-    # plt.show()
     
     # fig, ax = plt.subplots(figsize=(8, 8))
     # ax.plot(df.p_PC1PC2PC3,df.p_aei,'.k',markersize=0.2)
@@ -1178,30 +1154,454 @@ def analyze_density_results():
 
     
     
-    # # Angular Momentum Space
-    # plot_3d_scatter_numeric(df,'hx_norm','hy_norm','hz_norm',color='p_hxhyhz',
-    #                         logColor=False,colorscale='Blackbody_r',
-    #                         xrange=[0,0.8],
-    #                         yrange=[0.2,1],
-    #                         zrange=[0,0.8],
-    #                         filename = 'p_hxhyhz.html')
+    # Fig 11. Angular Momentum Space
+    plot_3d_scatter_numeric(df,'hx_norm','hy_norm','hz_norm',color='p_hxhyhz',
+                            logColor=False,colorscale='Blackbody_r',
+                            xrange=[0,0.8],
+                            yrange=[0.3,0.9],
+                            zrange=[0,0.6], # 0,0.8
+                            color_label='Log-likelihood (hx,hy,hz)',
+                            aspectmode='cube',
+                            filename = 'p_hxhyhz.html')
     
-    # plot_3d_scatter_numeric(df,'h','om','i',color='p_hxhyhz',
-    #                             logColor=False,colorscale='Blackbody_r',
-    #                             filename = 'p_hxhyhz.html')
+    # # plot_3d_scatter_numeric(df,'h','om','i',color='p_hxhyhz',
+    # #                             logColor=False,colorscale='Blackbody_r',
+    # #                             filename = 'p_hxhyhz.html')
     
-    # # Principal Components (don't bother - already highly correlated to ang momentum)
-    # plot_3d_scatter_numeric(df,'PC1','PC2','PC3',color='p_PC1PC2PC3',
-    #                         logColor=False,colorscale='Blackbody_r',
-    #                         filename = 'p_PCA.html')
+    # Fig 12. Principal Components (don't bother - already highly correlated to ang momentum)
+    plot_3d_scatter_numeric(df,'PC1_norm','PC2_norm','PC3_norm',color='p_PC1PC2PC3',
+                            logColor=False,colorscale='Blackbody_r',
+                            xrange=[0,0.4],
+                            yrange=[0.2,0.8],
+                            zrange=[0,0.8],
+                            color_label='Log-likelihood (PC1,PC2,PC3)',
+                            filename = 'p_PCA.html')
     
     
     # 3D Scatter by Object type
     # plot_3d_scatter_cat(df,'hx','hy','hz', 'OBJECT_TYPE')
     
+    # 1. Histograms. High Med Low density regions -----------------------------
+    # Also the correlation between the values 
+    
+    
+    # Histograms matplotlib
+    # log-likelihood
+    fig, axs = plt.subplots(2,1,figsize=(8, 8))
+    # axs[0].hist(df.p_aei, bins=50,label='Orbital Elements')
+    # axs[0].set_xlabel('Log-likelihood (a,e,i)')
+    # Angular momentum space
+    axs[0].hist(df.p_hxhyhz, bins=50,label='Angular Momentum')
+    axs[0].set_xlabel('Log-likelihood (hx,hy,hz)')
+    axs[0].axvline(x=4,linestyle=':')
+    axs[0].axvline(x=6.5,linestyle=':')
+    # Principal Component space
+    axs[1].hist(df.p_PC1PC2PC3, bins=50,label='Principal Components')
+    axs[1].axvline(x=4,linestyle=':')
+    axs[1].axvline(x=6.5,linestyle=':')
+    axs[1].set_xlabel('Log-likelihood (PC1,PC2,PC3)')
+    plt.show()
+    
+    # # Likelihood (x on log scale.)
+    # bins = 10 ** np.linspace(0, 10, 50)
+    # fig, axs = plt.subplots(3,1,figsize=(8, 8))
+    # axs[0].hist(10**(df.p_aei), bins=bins,label='Orbital Elements')
+    # axs[0].set_xscale('log')
+    # bins = 10 ** np.linspace(0, 8, 50)
+    # # axs[0].set_yscale('log')
+    # axs[0].set_xlabel('Density (a,e,i)')
+    # axs[1].hist(10**(df.p_hxhyhz), bins=bins,label='Angular Momentum')
+    # axs[1].set_xscale('log')
+    # # axs[1].set_yscale('log')
+    # axs[1].set_xlabel('Density (hx,hy,hz)')
+    # axs[2].hist(10**(df.p_PC1PC2PC3), bins=bins,label='Principal Components')
+    # axs[2].set_xscale('log')
+    # # axs[2].set_yscale('log')
+    # axs[2].set_xlabel('Density (PC1,PC2,PC3)')
+    # plt.show()
     
     
     return
 
+
+# 3D gifs of scatter plots
+
+
+def example_animation():
+    
+    # See: https://community.plotly.com/t/rotating-3d-plots-with-plotly/34776/2
+    
+    import plotly.graph_objects as go
+    import numpy as np
+    
+    # Helix equation
+    t = np.linspace(0, 10, 50)
+    x, y, z = np.cos(t), np.sin(t), t
+    
+    fig= go.Figure(go.Scatter3d(x=x, y=y, z=z, mode='markers'))
+    
+    x_eye = -1.25
+    y_eye = 2
+    z_eye = 0.5
+    
+    fig.update_layout(
+             title='Animation Test',
+             width=600,
+             height=600,
+             scene_camera_eye=dict(x=x_eye, y=y_eye, z=z_eye),
+             updatemenus=[dict(type='buttons',
+                      showactive=False,
+                      y=1,
+                      x=0.8,
+                      xanchor='left',
+                      yanchor='bottom',
+                      pad=dict(t=45, r=10),
+                      buttons=[dict(label='Play',
+                                     method='animate',
+                                     args=[None, dict(frame=dict(duration=5, redraw=True), 
+                                                                 transition=dict(duration=0),
+                                                                 fromcurrent=True,
+                                                                 mode='immediate'
+                                                                )]
+                                                )
+                                          ]
+                                  )
+                            ]
+    )
+    
+    
+    def rotate_z(x, y, z, theta):
+        w = x+1j*y
+        return np.real(np.exp(1j*theta)*w), np.imag(np.exp(1j*theta)*w), z
+    
+    frames=[]
+    for t in np.arange(0, 6.26, 0.1):
+        xe, ye, ze = rotate_z(x_eye, y_eye, z_eye, -t)
+        frames.append(go.Frame(layout=dict(scene_camera_eye=dict(x=xe, y=ye, z=ze))))
+    fig.frames=frames
+    
+    fig.show()
+    
+    return
+
+
+def fig2_animation():
+    
+    # See: https://community.plotly.com/t/rotating-3d-plots-with-plotly/34776/2
+    
+    # Load data
+    df = load_satellites(group='all',compute_params=True,compute_pca=True)
+    # Load in density results
+    dfd = load_density_values()
+    # Merge
+    df = pd.merge(df,dfd,how='left',on=['Name','NoradId'],suffixes=['','_norm'])
+    
+    
+    
+    import plotly.graph_objects as go
+    import numpy as np
+    
+    # Helix equation
+    t = np.linspace(0, 10, 50)
+    x, y, z = np.cos(t), np.sin(t), t
+    
+    fig = plot_3d_scatter_numeric(df,'hx','hy','hz',color=None,
+                            xrange=[-120000,120000],
+                            yrange=[-120000,120000],
+                            zrange=[-50000,150000],
+                            aspectmode='cube',
+                            render=False,
+                            )
+    
+    # x_eye, y_eye, z_eye = -1.25, 2, 0.5
+    x_eye, y_eye, z_eye = 1.25, 1.25, 1.25
+    
+    fig.update_layout(
+             title='Animation Test',
+             width=600,
+             height=600,
+             scene_camera_eye=dict(x=x_eye, y=y_eye, z=z_eye),
+             updatemenus=[dict(type='buttons',
+                      showactive=False,
+                      y=1,
+                      x=0.8,
+                      xanchor='left',
+                      yanchor='bottom',
+                      pad=dict(t=45, r=10),
+                      buttons=[dict(label='Play',
+                                     method='animate',
+                                     args=[None, dict(frame=dict(duration=5, redraw=True), 
+                                                                 transition=dict(duration=0),
+                                                                 fromcurrent=True,
+                                                                 mode='immediate'
+                                                                )]
+                                                )
+                                          ]
+                                  )
+                            ]
+    )
+    
+    
+    def rotate_z(x, y, z, theta):
+        w = x+1j*y
+        return np.real(np.exp(1j*theta)*w), np.imag(np.exp(1j*theta)*w), z
+    
+    frames=[]
+    for t in np.arange(0, 6.26, 0.1):
+        xe, ye, ze = rotate_z(x_eye, y_eye, z_eye, -t)
+        frames.append(go.Frame(layout=dict(scene_camera_eye=dict(x=xe, y=ye, z=ze))))
+    fig.frames=frames
+    
+    fig.show()
+    
+    
+    return
+
+def fig11_animation():
+    
+    # See: https://community.plotly.com/t/rotating-3d-plots-with-plotly/34776/2
+    
+    # Load data
+    df = load_satellites(group='all',compute_params=True,compute_pca=True)
+    # Load in density results
+    dfd = load_density_values()
+    # Merge
+    df = pd.merge(df,dfd,how='left',on=['Name','NoradId'],suffixes=['','_norm'])
+    
+    
+    
+    import plotly.graph_objects as go
+    import numpy as np
+    
+    # Helix equation
+    t = np.linspace(0, 10, 50)
+    x, y, z = np.cos(t), np.sin(t), t
+    
+    fig = plot_3d_scatter_numeric(df,'hx','hy','hz',color='p_hxhyhz',
+                                logColor=False,colorscale='Blackbody_r',
+                                xrange=[-120000,120000],
+                                yrange=[-120000,120000],
+                                zrange=[-50000,150000],
+                                aspectmode='cube',
+                                render=False,
+                                )
+    
+    # x_eye, y_eye, z_eye = -1.25, 2, 0.5
+    # x_eye, y_eye, z_eye = 1.25, 1.25, 1.25
+    x_eye, y_eye, z_eye = 1.5, 1.5, 1.5
+    
+    fig.update_layout(
+             title='Animation Test',
+             width=600,
+             height=600,
+             scene_camera_eye=dict(x=x_eye, y=y_eye, z=z_eye),
+             updatemenus=[dict(type='buttons',
+                      showactive=False,
+                      y=1,
+                      x=0.8,
+                      xanchor='left',
+                      yanchor='bottom',
+                      pad=dict(t=45, r=10),
+                      buttons=[dict(label='Play',
+                                     method='animate',
+                                     args=[None, dict(frame=dict(duration=5, redraw=True), 
+                                                                 transition=dict(duration=0),
+                                                                 fromcurrent=True,
+                                                                 mode='immediate'
+                                                                )]
+                                                )
+                                          ]
+                                  )
+                            ]
+    )
+    
+    
+    def rotate_z(x, y, z, theta):
+        w = x+1j*y
+        return np.real(np.exp(1j*theta)*w), np.imag(np.exp(1j*theta)*w), z
+    
+    # Define rotation steps
+    t_list = np.linspace(0,2*np.pi,200)
+    
+    frames=[]
+    for t in t_list:
+        xe, ye, ze = rotate_z(x_eye, y_eye, z_eye, -t)
+        frames.append(go.Frame(layout=dict(scene_camera_eye=dict(x=xe, y=ye, z=ze))))
+    fig.frames=frames
+    
+    
+    # fig.update_layout(
+    #         margin=dict(l=20, r=20, t=20, b=60)
+    #         )
+    
+    
+    fig.show()
+    
+    
+    return
+
+def fig2_gif():
+    
+    # Save the animation to a gif
+    
+    # See: https://community.plotly.com/t/rotating-3d-plots-with-plotly/34776/2
+    # See: https://community.plotly.com/t/how-to-export-animation-and-save-it-in-a-video-format-like-mp4-mpeg-or/64621/2
+    
+    def plotly_fig2array(fig):
+        #convert Plotly fig to  an array
+        fig_bytes = fig.to_image(format="png")
+        buf = io.BytesIO(fig_bytes)
+        img = Image.open(buf)
+        return np.asarray(img)
+    
+    
+    
+    # Load data
+    df = load_satellites(group='all',compute_params=True,compute_pca=True)
+    # Load in density results
+    dfd = load_density_values()
+    # Merge
+    df = pd.merge(df,dfd,how='left',on=['Name','NoradId'],suffixes=['','_norm'])
+    
+    
+    
+    import plotly.graph_objects as go
+    import numpy as np
+    import  moviepy.editor as mpy
+    import io 
+    from PIL import Image
+    
+    # Initialize figure
+    fig = plot_3d_scatter_numeric(df,'hx','hy','hz',color=None,
+                                xrange=[-120000,120000],
+                                yrange=[-120000,120000],
+                                zrange=[-50000,150000],
+                                aspectmode='cube',
+                                render=False,
+                                )
+    
+    # Set camera view
+    # x_eye, y_eye, z_eye = -1.25, 2, 0.5
+    # x_eye, y_eye, z_eye = 1.25, 1.25, 1.25
+    x_eye, y_eye, z_eye = 1.5, 1.5, 1.5
+    
+    fig.update_layout(
+             width=620, # 700
+             height=600, # 600
+             scene_camera_eye=dict(x=x_eye, y=y_eye, z=z_eye),
+             # margin=dict(r=10, l=10, b=10, t=0),
+    )
+    
+    
+    # Define rotation fucntion
+    def rotate_z(x, y, z, theta):
+        w = x+1j*y
+        return np.real(np.exp(1j*theta)*w), np.imag(np.exp(1j*theta)*w), z
+    
+    # Define duration and framerate
+    duration, fps = 5.0, 10 # Good settings for production
+    # duration, fps = 1.0, 5 # Quick video for testing
+    
+    # No Plotly frames are defined here!! Instead we define moviepy frames by
+    # converting each Plotly figure to  an array, from which MoviePy creates a clip
+    # The concatenated clips are saved as a gif file:
+    def make_frame(t):
+        # t = time
+        theta = 2*np.pi*t/duration # Angle (fraction of 2pi radians)
+        xe, ye, ze = rotate_z(x_eye, y_eye, z_eye, -theta)
+        fig.update_layout(scene_camera_eye=dict(x=xe, y=ye, z=ze))
+        
+        return plotly_fig2array(fig)
+    
+    # Create animation
+    animation = mpy.VideoClip(make_frame, duration=duration)
+    animation = animation.crop(x1=50, y1=100, x2=540, y2=570) # Crop video
+    animation.write_gif("fig2.gif", fps=fps) # Save to gif
+    # Animation size (620, 600)
+    
+    return
+
+
+def fig11_gif():
+    
+    # Save the animation to a gif
+    
+    # See: https://community.plotly.com/t/rotating-3d-plots-with-plotly/34776/2
+    # See: https://community.plotly.com/t/how-to-export-animation-and-save-it-in-a-video-format-like-mp4-mpeg-or/64621/2
+    
+    def plotly_fig2array(fig):
+        #convert Plotly fig to  an array
+        fig_bytes = fig.to_image(format="png")
+        buf = io.BytesIO(fig_bytes)
+        img = Image.open(buf)
+        return np.asarray(img)
+    
+    
+    
+    # Load data
+    df = load_satellites(group='all',compute_params=True,compute_pca=True)
+    # Load in density results
+    dfd = load_density_values()
+    # Merge
+    df = pd.merge(df,dfd,how='left',on=['Name','NoradId'],suffixes=['','_norm'])
+    
+    
+    
+    import plotly.graph_objects as go
+    import numpy as np
+    import  moviepy.editor as mpy
+    import io 
+    from PIL import Image
+    
+    # Initialize figure
+    fig = plot_3d_scatter_numeric(df,'hx','hy','hz',color='p_hxhyhz',
+                                logColor=False,colorscale='Blackbody_r',
+                                xrange=[-120000,120000],
+                                yrange=[-120000,120000],
+                                zrange=[-50000,150000],
+                                aspectmode='cube',
+                                render=False,
+                                )
+    
+    # Set camera view
+    # x_eye, y_eye, z_eye = -1.25, 2, 0.5
+    # x_eye, y_eye, z_eye = 1.25, 1.25, 1.25
+    x_eye, y_eye, z_eye = 1.5, 1.5, 1.5
+    
+    fig.update_layout(
+             width=620, # 700
+             height=600, # 600
+             scene_camera_eye=dict(x=x_eye, y=y_eye, z=z_eye),
+             # margin=dict(r=10, l=10, b=10, t=0),
+    )
+    
+    
+    # Define rotation fucntion
+    def rotate_z(x, y, z, theta):
+        w = x+1j*y
+        return np.real(np.exp(1j*theta)*w), np.imag(np.exp(1j*theta)*w), z
+    
+    # Define duration and framerate
+    duration, fps = 5.0, 10 # Good settings for production
+    # duration, fps = 1.0, 5 # Quick video for testing
+    
+    # No Plotly frames are defined here!! Instead we define moviepy frames by
+    # converting each Plotly figure to  an array, from which MoviePy creates a clip
+    # The concatenated clips are saved as a gif file:
+    def make_frame(t):
+        # t = time
+        theta = 2*np.pi*t/duration # Angle (fraction of 2pi radians)
+        xe, ye, ze = rotate_z(x_eye, y_eye, z_eye, -theta)
+        fig.update_layout(scene_camera_eye=dict(x=xe, y=ye, z=ze))
+        
+        return plotly_fig2array(fig)
+    
+    # Create animation
+    animation = mpy.VideoClip(make_frame, duration=duration)
+    animation = animation.crop(x1=0, y1=100, x2=620, y2=570) # Crop video
+    animation.write_gif("fig11.gif", fps=fps) # Save to gif
+    # Animation size (620, 600)
+    
+    return
 
 
