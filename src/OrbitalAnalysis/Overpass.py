@@ -36,6 +36,7 @@ from Events import *
 from Visualization import plot_time_windows, plot_visibility, plot_overpass_skyplot, plot_linkbudget
 from GroundstationData import get_groundstations
 from Communications import *
+from VisualMagnitude import *
 # from GmatScenario import *
 
 

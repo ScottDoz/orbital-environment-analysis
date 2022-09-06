@@ -26,6 +26,7 @@ import pdb
 
 from Ephem import *
 from Events import *
+from VisualMagnitude import *
 
 #%% Simple Histograms
 

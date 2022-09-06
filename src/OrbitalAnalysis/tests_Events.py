@@ -268,6 +268,7 @@ def test_plot_visual_magnitude():
     
     
     # Compute Visual magnitudes
+    from VisualMagnitude import *
     Rsat = 1 # Radius of satellite (m)
     msat = compute_visual_magnitude(dftopo,Rsat,p=0.25,k=0.12) # With airmass
     msat2 = compute_visual_magnitude(dftopo,Rsat,p=0.25,k=0.12,include_airmass=False) # Without airmass
