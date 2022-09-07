@@ -8,6 +8,14 @@ Test Events module
 
 """
 
+# Imports
+import numpy as np
+import spiceypy as spice
+
+# Module Imports
+from Ephem import *
+
+
 #%% Events. Eclipses and Station Lighting
 
 def test_station_lighting():
@@ -256,39 +264,4 @@ def test_plot_overpass():
     
     return
 
-def test_plot_visual_magnitude():
-    
-    
-    # Generate ephemeris times
-    et = generate_et_vectors_from_GMAT_coverage(30., exclude_ends=True)
-    
-    # Get Topocentric observations
-    dftopo = get_ephem_TOPO(et,groundstations=['SSR-1','SSR-2'])
-    dftopo = dftopo[0] # Select first station
-    
-    
-    # Compute Visual magnitudes
-    from VisualMagnitude import *
-    Rsat = 1 # Radius of satellite (m)
-    msat = compute_visual_magnitude(dftopo,Rsat,p=0.25,k=0.12) # With airmass
-    msat2 = compute_visual_magnitude(dftopo,Rsat,p=0.25,k=0.12,include_airmass=False) # Without airmass
-    
-    # Generate plots
-    fig, (ax1,ax2) = plt.subplots(2,1)
-    fig.suptitle('Visual Magnitude')
-    # Magnitude vs elevation
-    ax1.plot(np.rad2deg(dftopo['Sat.El']),msat,'.b')
-    ax1.plot(np.rad2deg(dftopo['Sat.El']),msat2,'.k')
-    ax1.set_xlabel("Elevation (deg)")
-    ax1.set_ylabel("Visual Magnitude (mag)")
-    ax1.invert_yaxis() # Invert y axis
-    # Az/El
-    ax2.plot(dftopo['ET'],msat,'-b')
-    ax2.plot(dftopo['ET'],msat2,'-k')
-    ax2.invert_yaxis() # Invert y axis
-    ax2.set_xlabel("Epoch (ET)")
-    ax2.set_ylabel("Visual Magnitude (mag)")
-    fig.show()
-    
-    
-    return
+

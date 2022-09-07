@@ -11,6 +11,10 @@ Methods to compute the visual magnitude of a satellite from a groundstation.
 
 """
 
+import numpy as np
+import pandas as pd
+
+
 # References:
 # - Astronomical Algorithms ch 41
 
