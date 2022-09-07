@@ -89,3 +89,13 @@ def compute_visual_magnitude(dftopo,Rsat,p=0.25,k=0.12,include_airmass=True):
     # TODO: Constrain by max value
     
     return msat
+
+
+#%% Flat Facet Model
+
+# Implementation of
+# Linares et al. 2020 "Space Objects Classification via Light-Curve Measurements 
+# Using Deep Convolutional Neural Networks
+
+
+

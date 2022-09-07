@@ -4,10 +4,11 @@ Created on Wed Mar  9 18:40:50 2022
 
 @author: scott
 
-Overpass Module
--------------------
-Functions dealing with the setup of the scenario.
+DIT Module
+----------
 
+Main workflow for the DIT analysis
+- Main function: run_analysis
 - analyse statistics of the overpasses
 
 Note: the NAIF of the spacecraft in the output ephemeris file is
@@ -254,9 +255,6 @@ Overall Radar Detectability Score: {radar_detect_score}
 
 
 #%% Subroutines
-
-
-
 
 def create_ephem_files(sat,start_date,stop_date,step,method):
     ''' Create ephemeris files for satellite and groundstation networks '''

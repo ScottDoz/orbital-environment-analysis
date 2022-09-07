@@ -12,7 +12,7 @@ from SatelliteData import *
 from Clustering import *
 from DistanceAnalysis import *
 from Visualization import *
-from Overpass import *
+from DIT import *
 from Ephem import *
 from Events import *
 from GmatScenario import *
