@@ -581,8 +581,8 @@ def compute_optical_detectability(df):
     
     # Compute visual magnitude
     Rsat = 1 # Radius of satellite (m)
-    msat = compute_visual_magnitude(dftopo,Rsat,p=0.25,k=0.12) # With airmass
-    msat2 = compute_visual_magnitude(dftopo,Rsat,p=0.25,k=0.12,include_airmass=False) # Without airmass
+    msat = compute_visual_magnitude(dftopo,Rsat,p=0.25,k=0.12) # Lambertian phase function
+    msat2 = compute_visual_magnitude(dftopo,Rsat,p=0.25,k=0.12,lambertian_phase_function=False) # Constant phase function v(alpha)=1
     # Add to dataframe
     dftopo.insert(len(dftopo.columns),'Vmag',list(msat))
     dftopo.insert(len(dftopo.columns),'Vmag2',list(msat2))

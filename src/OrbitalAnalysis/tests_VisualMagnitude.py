@@ -12,6 +12,7 @@ import pyvista as pv
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 
+import timeit
 import pdb
 
 # Module imports
@@ -19,6 +20,7 @@ from utils import get_data_home
 from VisualMagnitude import *
 from Ephem import *
 from Epoch import *
+from Events import *
 
 #%% Simple Approximation
 
@@ -29,45 +31,71 @@ def test_plot_visual_magnitude():
 
     '''
     
-    
-    # # Generate ephemeris times
-    # et = generate_et_vectors_from_GMAT_coverage(30., exclude_ends=True)
-    
     # Generate ephemeris times
-    # step = 10.
-    # step = 5.
-    # et = generate_et_vectors_from_GMAT_coverage(step, exclude_ends=True)
     start_date = '2020-10-26 16:00:00.000' # Start Date e.g. '2020-10-26 16:00:00.000'
     stop_date =  '2020-11-25 15:59:59.999' # Stop Date e.g.  '2020-11-25 15:59:59.999'
     step = 10 # Step size (s)
     
     # Convert start and stop dates to Ephemeris Time
     et = et_from_date_range(start_date, stop_date, step)
+    start_et = et[0]
+    stop_et = et[-1]
+    
+    # Select groundstation
+    # gs = 'DSS-43'
+    gs = 'SSRD-1'
+    # gs = 'SSR-1'
+    # gs = 'SSR-2'
+    
+    # Compute satellite lighting intervals
+    satlight, satpartial, satdark = find_sat_lighting(start_et,stop_et)
+    
+    # Compute station lighting intervals
+    gslight, gsdark = find_station_lighting(start_et,stop_et,station=gs)
+    
+    # Compute line-of-sight access intervals
+    los_access = find_access(start_et,stop_et,station=gs)
+    dflos = window_to_dataframe(los_access)
+    
+    # Compute visible (constrained) access intervals
+    vis_access = constrain_access_by_lighting(los_access,gsdark,satlight)
+    dfvis = window_to_dataframe(vis_access)
+    
+    # Generate ephemeris times covering access periods
+    et = et_from_access_df(dfvis,step)
     
     # Get Topocentric observations
-    dftopo = get_ephem_TOPO(et,groundstations=['SSR-1','SSR-2'])
+    dftopo = get_ephem_TOPO(et,groundstations=[gs])
     dftopo = dftopo[0] # Select first station
+    
+    # # Plot overpass
+    # from Visualization import plot_overpass_skyplot
+    # plot_overpass_skyplot(dftopo, dfvis)
     
     
     # Compute Visual magnitudes
-    from VisualMagnitude import compute_visual_magnitude
     Rsat = 1 # Radius of satellite (m)
-    msat = compute_visual_magnitude(dftopo,Rsat,p=0.25,k=0.12) # With airmass
-    msat2 = compute_visual_magnitude(dftopo,Rsat,p=0.25,k=0.12,include_airmass=False) # Without airmass
+    msat = compute_visual_magnitude(dftopo,Rsat,p=0.25,k=0.12) # Lambertian phase function
+    msat2 = compute_visual_magnitude(dftopo,Rsat,p=0.25,k=0.12,lambertian_phase_function=False) # Constant phase function v(alpha)=1
+
+    # Flatfacet model
+    msat_ff = compute_visual_magnitude_flatfacet(dftopo,Rsat,model='sphere',p=0.25,k=0.12)
     
     # Generate plots
-    fig, (ax1,ax2) = plt.subplots(2,1)
+    fig, (ax1,ax2) = plt.subplots(2,1,figsize=(8, 8))
     fig.suptitle('Visual Magnitude')
     # Magnitude vs elevation
-    ax1.plot(np.rad2deg(dftopo['Sat.El']),msat,'.b',label='Airmass')
-    ax1.plot(np.rad2deg(dftopo['Sat.El']),msat2,'.k',label='No airmass')
+    ax1.plot(np.rad2deg(dftopo['Sat.El']),msat,'.b',label='Lambertian phase function')
+    ax1.plot(np.rad2deg(dftopo['Sat.El']),msat2,'.k',label='Constant phase function')
+    ax1.plot(np.rad2deg(dftopo['Sat.El']),msat_ff,'.r',label='Flat Facet Model')
     ax1.set_xlabel("Elevation (deg)")
     ax1.set_ylabel("Visual Magnitude (mag)")
     ax1.legend(loc='lower right')
     ax1.invert_yaxis() # Invert y axis
     # Az/El
-    ax2.plot(dftopo['ET'],msat,'-b',label='Airmass')
-    ax2.plot(dftopo['ET'],msat2,'-k',label='No airmass')
+    ax2.plot(dftopo['ET'],msat,'-b',label='Lambertian phase function')
+    ax2.plot(dftopo['ET'],msat2,'-k',label='Constant phase function')
+    ax2.plot(dftopo['ET'],msat_ff,'-r',label='Flat Facet Model')
     ax2.invert_yaxis() # Invert y axis
     ax2.set_xlabel("Epoch (ET)")
     ax2.set_ylabel("Visual Magnitude (mag)")

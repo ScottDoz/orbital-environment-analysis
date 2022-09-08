@@ -53,3 +53,30 @@ def et_from_date_range(start_date,stop_date,step):
     
     return et
 
+def et_from_access_df(dfa,step):
+    '''
+    Generate a vector of ephemeris times based on access periods with a set timestep.
+
+    Parameters
+    ----------
+    dfa : TYPE
+        Dataframe containing start and stop et of each access period.
+    step : TYPE
+        Step size (s).
+
+    Returns
+    -------
+    et : 1xN array
+        Array of ephemeris times.
+
+    '''
+    et = np.array([]) # Instantiate empty array
+    
+    # Loop through each access period and generate separate vector of times.
+    for i,row in dfa.iterrows():
+        eti = np.arange(row['Start'],row['Stop'],step); eti = np.append(eti,row['Stop'])
+        et = np.concatenate((et, eti)) 
+    
+    
+    return et
+

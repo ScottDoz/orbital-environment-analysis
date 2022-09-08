@@ -141,8 +141,8 @@ def test_plot_visual_magnitude(station):
     
     # Compute visual magnitude
     p = 0.175 # Albedo (17.5%)
-    msat = compute_visual_magnitude(dftopo,Rsat,p=p,k=0.12) # With airmass
-    msat2 = compute_visual_magnitude(dftopo,Rsat,p=p,k=0.12,include_airmass=False) # Without airmass
+    msat = compute_visual_magnitude(dftopo,Rsat,p=p,k=0.12) # Lambertian phase function
+    msat2 = compute_visual_magnitude(dftopo,Rsat,p=p,k=0.12,lambertian_phase_function=False) # Constant phase function v(alpha)=1
     # Add to dataframe
     dftopo.insert(len(dftopo.columns),'Vmag',list(msat))
     dftopo.insert(len(dftopo.columns),'Vmag2',list(msat2))

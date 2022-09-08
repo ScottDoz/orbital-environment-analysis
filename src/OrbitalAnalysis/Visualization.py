@@ -1336,6 +1336,10 @@ def plot_overpass_skyplot(dftopo, dfa, filename=None,title=None):
     # Bin data based on access time intervals
     # See: https://towardsdatascience.com/how-i-customarily-bin-data-with-pandas-9303c9e4d946
     
+    # Optional add access labels
+    if 'Access' not in dfa.columns:
+        dfa['Access'] = dfa.index
+    
     dftopo1 = dftopo.copy()
     
     if 'Sat.Vmag' not in dftopo1.columns:
@@ -1692,8 +1696,8 @@ def plot_overpass_magnitudes(dftopo, dfa):
     
     # Compute visual magnitudes
     Rsat = 1 # Radius of satellite (m)
-    msat = compute_visual_magnitude(dftopo1,Rsat,p=0.25,k=0.12,include_airmass=True) # With airmass
-    # msat = compute_visual_magnitude(dftopo1,Rsat,p=0.25,k=0.12,include_airmass=False) # Without airmass
+    msat = compute_visual_magnitude(dftopo1,Rsat,p=0.25,k=0.12,lambertian_phase_function=True) # Lambertian phase function
+    # msat = compute_visual_magnitude(dftopo1,Rsat,p=0.25,k=0.12,lambertian_phase_function=False) # Constant phase function v(alpha)=1
     dftopo1['Sat.Vmag'] = msat
     
     # Remove nan
