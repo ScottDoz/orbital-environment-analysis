@@ -18,6 +18,7 @@ import pdb
 from utils import get_data_home
 from VisualMagnitude import *
 from Ephem import *
+from Epoch import *
 
 #%% Simple Approximation
 
@@ -38,17 +39,10 @@ def test_plot_visual_magnitude():
     # et = generate_et_vectors_from_GMAT_coverage(step, exclude_ends=True)
     start_date = '2020-10-26 16:00:00.000' # Start Date e.g. '2020-10-26 16:00:00.000'
     stop_date =  '2020-11-25 15:59:59.999' # Stop Date e.g.  '2020-11-25 15:59:59.999'
+    step = 10 # Step size (s)
     
     # Convert start and stop dates to Ephemeris Time
-    step = 5.
-    kernel_dir = get_data_home() / 'Kernels'
-    spice.furnsh( str(kernel_dir/'naif0012.tls') ) # Leap second kernel
-    start_et = spice.str2et(start_date)
-    stop_et = spice.str2et(stop_date)
-    scenario_duration = stop_et - start_et # Length of scenario (s)
-    
-    # Generate ephemeris times
-    et = np.arange(start_et,stop_et,10); et = np.append(et,stop_et)
+    et = et_from_date_range(start_date, stop_date, step)
     
     # Get Topocentric observations
     dftopo = get_ephem_TOPO(et,groundstations=['SSR-1','SSR-2'])

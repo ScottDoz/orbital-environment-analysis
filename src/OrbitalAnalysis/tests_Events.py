@@ -14,6 +14,8 @@ import spiceypy as spice
 
 # Module Imports
 from Ephem import *
+from Epoch import *
+from Events import *
 
 
 #%% Events. Eclipses and Station Lighting
@@ -25,9 +27,14 @@ def test_station_lighting():
     gs = 'SSR-1'
     
     # Generate ephemeris times
-    step = 10.
-    # step = 5.
-    et = generate_et_vectors_from_GMAT_coverage(step, exclude_ends=False)
+    start_date = '2020-10-26 16:00:00.000' # Start Date e.g. '2020-10-26 16:00:00.000'
+    stop_date =  '2020-11-25 15:59:59.999' # Stop Date e.g.  '2020-11-25 15:59:59.999'
+    step = 10 # Step size (s)
+    
+    # Convert start and stop dates to Ephemeris Time
+    et = et_from_date_range(start_date, stop_date, step)
+    
+    
     start_et = et[0]
     stop_et = et[-1]
     # light, dark = find_station_lighting(start_et,stop_et,station=gs,ref_el=-0.25)
@@ -82,9 +89,13 @@ def test_sat_lighting():
     # Confirmed matches with output of GMAT EclipseLocator.
     
     # Generate ephemeris times
-    step = 10.
-    # step = 5.
-    et = generate_et_vectors_from_GMAT_coverage(step, exclude_ends=False)
+    start_date = '2020-10-26 16:00:00.000' # Start Date e.g. '2020-10-26 16:00:00.000'
+    stop_date =  '2020-11-25 15:59:59.999' # Stop Date e.g.  '2020-11-25 15:59:59.999'
+    step = 10 # Step size (s)
+    
+    # Convert start and stop dates to Ephemeris Time
+    et = et_from_date_range(start_date, stop_date, step)
+    
     start_et = et[0]
     stop_et = et[-1]
     light, partial, dark = find_sat_lighting(start_et,stop_et)
@@ -133,9 +144,13 @@ def test_access():
     # TODO: Check receive vs transmit results
     
     # Generate ephemeris times
-    step = 10.
-    # step = 5.
-    et = generate_et_vectors_from_GMAT_coverage(step, exclude_ends=True)
+    start_date = '2020-10-26 16:00:00.000' # Start Date e.g. '2020-10-26 16:00:00.000'
+    stop_date =  '2020-11-25 15:59:59.999' # Stop Date e.g.  '2020-11-25 15:59:59.999'
+    step = 10 # Step size (s)
+    
+    # Convert start and stop dates to Ephemeris Time
+    et = et_from_date_range(start_date, stop_date, step)
+    
     start_et = et[0]
     stop_et = et[-1]
     
@@ -222,9 +237,12 @@ def test_plot_access():
     # gs = 'SSR-30'
     
     # Generate ephemeris times
-    step = 10.
-    # step = 5.
-    et = generate_et_vectors_from_GMAT_coverage(step, exclude_ends=True)
+    start_date = '2020-10-26 16:00:00.000' # Start Date e.g. '2020-10-26 16:00:00.000'
+    stop_date =  '2020-11-25 15:59:59.999' # Stop Date e.g.  '2020-11-25 15:59:59.999'
+    step = 10 # Step size (s)
+    
+    # Convert start and stop dates to Ephemeris Time
+    et = et_from_date_range(start_date, stop_date, step)
     start_et = et[0]
     stop_et = et[-1]
     
@@ -238,6 +256,7 @@ def test_plot_access():
     access = find_access(start_et,stop_et,station=gs)
     
     # Plot
+    from Visualization import plot_access_times
     plot_access_times(access,gslight,gsdark,satlight, satpartial, satdark)
     
     
@@ -245,13 +264,16 @@ def test_plot_access():
 
 def test_plot_overpass():
     
-    # Load access
-    dfa = load_access_results()
+    # FIXME: Load access
+    dfa = load_access_results() # From Gmat scenario. Update!
     
     # Generate ephemeris times
-    # step = 10.
-    step = 5.
-    et = generate_et_vectors_from_GMAT_coverage(step, exclude_ends=True)
+    start_date = '2020-10-26 16:00:00.000' # Start Date e.g. '2020-10-26 16:00:00.000'
+    stop_date =  '2020-11-25 15:59:59.999' # Stop Date e.g.  '2020-11-25 15:59:59.999'
+    step = 10 # Step size (s)
+    
+    # Convert start and stop dates to Ephemeris Time
+    et = et_from_date_range(start_date, stop_date, step)
     
     # Get Topocentric observations
     dftopo = get_ephem_TOPO(et)[0]

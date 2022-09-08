@@ -18,6 +18,7 @@ from SatelliteData import *
 from DIT import *
 from Ephem import *
 from Events import *
+from VisualMagnitude import *
 # from GmatScenario import *
 
 import matplotlib.pyplot as plt
