@@ -151,7 +151,8 @@ def compute_visual_magnitude_flatfacet(dftopo,Rsat,model='sphere',p=0.25,k=0.12)
         # This is the normal component of solar flux incident on the facet (W/m^2)
         
         # Fobs. Solar flux at the observer from each facet.
-        ptotal = 1.
+        # ptotal = 1.
+        ptotal = p
         Fobs = Fsun*ptotal*A*np.einsum('ij,ij->i', u_n, u_obs)/(row['Sat.R']*1000)**2
         Fobs[Fobs<0] = 0. # If angle is < pi/2 no light reflected
         
