@@ -337,6 +337,89 @@ def query_norad(IDs,compute_params=True):
     return df
 
 
+def get_tle_historic(ID):
+    '''
+    Get a list of all historic TLE data for a single object. Return data as a
+    dataframe ordered by epoch.
+
+    Parameters
+    ----------
+    ID : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    None.
+
+    '''
+    
+    import datetime as dt
+    
+    # Read spacetrack email and password from config.ini
+    config = configparser.ConfigParser()
+    config.read('config.ini')
+    email = config['Spacetrack']['email']
+    pw = config['Spacetrack']['pw']
+    
+    
+    # Set up connection to client 
+    from spacetrack import SpaceTrackClient
+    import spacetrack.operators as op
+    st = SpaceTrackClient(email, pw)
+    
+    # Create time range
+    d1 = dt.datetime(2000, 1, 1) # Start date (default 2000)
+    d2 = dt.datetime.now() # dt.datetime(2030, 1, 1) # End date
+    drange = op.inclusive_range(d1,d2)
+    
+    # Query
+    lines = st.tle_publish(norad_cat_id=ID,iter_lines=True, 
+                            publish_epoch=drange, 
+                            orderby='TLE_LINE1', format='tle')
+    # Extract lines
+    tle_lines = [line for line in lines]
+    tle_lines = tle_lines
+    
+    # Insert 3rd line (name)
+    # The TLE-tools requires 3 line formats. Add an empty line as a placeholder
+    # for the name.
+    from itertools import chain
+    N = 2
+    k = ' '
+    res = list(chain(*[tle_lines[i : i+N] + [k] 
+            if len(tle_lines[i : i+N]) == N 
+            else tle_lines[i : i+N] 
+            for i in range(0, len(tle_lines), N)]))
+    # Insert first item
+    res.insert(0, k)
+    
+    # Write data to temp file (deleted on close)
+    import tempfile
+    tmp = tempfile.NamedTemporaryFile(delete=False)
+    with open(tmp.name, 'w') as fp:
+        for line in res:
+            fp.write(line + '\n')
+        # Extract relevant data to TLE objects
+        from tletools import TLE
+        tle_lines = TLE.load(fp.name)
+    
+    # Convert data to dataframe
+    data = [tle.__dict__ for tle in tle_lines] # List of dictionaries
+    df = pd.DataFrame(data)
+    
+    # Compute epoch
+    # Using TLE.epoch method
+    # TODO: replace this with faster method
+    epoch = [tle.epoch for tle in tle_lines]
+    df['epoch'] = epoch
+    
+    # Sort by epoch
+    df.sort_values(by='epoch',inplace=True,ignore_index=True)
+    
+    return df
+
+
+
 # Alternative methods for querying single objects
     
 # # Satellite TLE

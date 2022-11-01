@@ -29,6 +29,67 @@ def test_query_norad():
     
     return df
 
+def test_historic_tle_data():
+    ''' Load historic TLE data for a single Norad ID '''
+    
+    import datetime as dt
+    
+    # Read spacetrack email and password from config.ini
+    config = configparser.ConfigParser()
+    config.read('config.ini')
+    email = config['Spacetrack']['email']
+    pw = config['Spacetrack']['pw']
+    
+    
+    # Set up connection to client 
+    from spacetrack import SpaceTrackClient
+    import spacetrack.operators as op
+    st = SpaceTrackClient(email, pw)
+    
+    # Create time range
+    d1 = dt.datetime(2000, 1, 1)
+    d2 = dt.datetime(2030, 1, 1)
+    drange = op.inclusive_range(d1,d2)
+    
+    ID = 25544
+    
+    # Query
+    lines = st.tle_publish(norad_cat_id=ID,iter_lines=True, 
+                            publish_epoch=drange, 
+                            orderby='TLE_LINE1', format='tle')
+    # Extract lines
+    tle_lines = [line for line in lines]
+    tle_lines = tle_lines
+    
+    # Insert 3rd line (name)
+    from itertools import chain
+    N = 2
+    k = ' '
+    res = list(chain(*[tle_lines[i : i+N] + [k] 
+            if len(tle_lines[i : i+N]) == N 
+            else tle_lines[i : i+N] 
+            for i in range(0, len(tle_lines), N)]))
+    # Insert first item
+    res.insert(0, k)
+    
+    # Write data to temp file
+    import tempfile
+    tmp = tempfile.NamedTemporaryFile(delete=False)
+    with open(tmp.name, 'w') as fp:
+        for line in res:
+            fp.write(line + '\n')
+        # Extract relevant data to TLE objects
+        from tletools import TLE
+        tle_lines = TLE.load(fp.name)
+    
+    # Convert to dataframe
+    data = [tle.__dict__ for tle in tle_lines] # List of dictionaries
+    df = pd.DataFrame(data)
+    
+    
+    return df
+
+
 def test_load_satellite_data():
     ''' Load the satellite data and compute orbital parameters '''
     

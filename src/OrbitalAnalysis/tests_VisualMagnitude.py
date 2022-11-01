@@ -182,7 +182,7 @@ def test_flat_facet_model():
     # Append color
     pvmesh['F'] = vert_colors
     
-    pdb.set_trace()
+    # pdb.set_trace()
     # # Plot with vedo
     # # Create plotter object
     # vp = vedo.Plotter(bg='black')
