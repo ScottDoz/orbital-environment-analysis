@@ -6,12 +6,12 @@ Created on Tue Nov  1 16:19:59 2022
 """
 
 import numpy as np
+import matplotlib.pyplot as plt
 from SatelliteData import *
 from astropy import units as u
 from poliastro.twobody import Orbit
 from poliastro.bodies import Earth
 from numpy.random import multivariate_normal
-
 
 # Load data
 df = load_satellites(group='all',compute_params=True)
@@ -55,8 +55,31 @@ P = np.diag([.107, .308, .169, .1, .1, .1]) #Covariance matrix
 mean = np.concatenate([r_rsw,v_rsw]) #State vector
 
 # Example from textbook:
-# #generate random points
-# xs, ys = multivariate_normal(mean=mean, cov=p, size=10000).T
+#generate random points
+A = multivariate_normal(mean=mean, cov=P, size=10000)
+rs = A[:,:3]
+vs = A[:,3:]
+hs = np.cross(rs,vs)
 
+# Plotting angular momentum in RSW frame
+#TODO: Add labels to the plots, look at additional plots
+# Look into statistical tests to see if covariance is gaussian
+fig = plt.figure()
+ax0 = fig.add_subplot(1,2,1,projection='3d')
+ax1 = fig.add_subplot(1,2,2,projection='3d')
+ax0.set_box_aspect((np.ptp(rs[:,0]), np.ptp(rs[:,1]), np.ptp(rs[:,2])))
+ax1.set_box_aspect((np.ptp(hs[:,0]), np.ptp(hs[:,1]), np.ptp(hs[:,2])))
+ax0.scatter(rs[:,0],rs[:,1],rs[:,2],c = 'b', marker='.')
+ax1.scatter(hs[:,0],hs[:,1],hs[:,2],c = 'b', marker='.')
+
+# Computing mean and covariance of the sample points
+meanh = np.mean(hs,axis=0)
+Ph = np.cov(hs.T)
+eigen_values, eigen_vectors = np.linalg.eig(Ph)
+projection_matrix = (eigen_vectors.T[:][:2]).T
+X_pca = X.dot(projection_matrix)
+
+# Transform covariance matrix
+# Ph = M*P*M.T
 
 
