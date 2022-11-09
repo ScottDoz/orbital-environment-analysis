@@ -132,6 +132,19 @@ def load_satellites(group='all',compute_params=True,compute_pca=True):
         # Remove 0 from name
         df['Name'][df['Name'].str[:2]=='0 '] = df['Name'].str[2:]
         
+        # Add lines 1 and 2 of the TLEs. Required for SGP4 propagation.
+        # E.g.:
+        # line1 = '1 20580U 90037B   19342.88042116  .00000361  00000-0  11007-4 0  9996'
+        # line2 = '2 20580  28.4682 146.6676 0002639 185.9222 322.7238 15.09309432427086'
+        lines = pd.read_csv(str(DATA_DIR/'tle_latest.txt'), sep=',', header=None) # Read in TLE lines
+        mylist = list(lines[0]) # Lines as a list
+        # Splice list every 3 items
+        df1 = pd.DataFrame([mylist[n:n+3] for n in range(0, len(list(mylist)), 3)], columns=['Name','line1','line2'])
+        df1['Name'][df1['Name'].str[:2]=='0 '] = df1['Name'].str[2:] # Remove 0 from name
+        # Insert columns to main dataframe. (Same order as df)
+        # df2 = pd.merge(df,df1,on='Name',how='left') # Via merge
+        df = pd.concat([df, df1[['line1','line2']]], axis=1) # Via concat (same order as df)
+        
         # Compute orbital parameters
         if compute_params:
             df = compute_orbital_params(df)
