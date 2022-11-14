@@ -619,6 +619,18 @@ class SPICEKernels:
             print("Missing Earthstations kernel")
             SPICEKernels.download_earthstations()
         
+        # MKSPK.exe
+        filename = kernel_dir/'mkspk.exe'
+        if filename.exists() == False:
+            print("Missing mkspk.exe")
+            SPICEKernels.install_mkspk()
+        
+        # PINPOINT.exe
+        filename = kernel_dir/'pinpoint.exe'
+        if filename.exists() == False:
+            print("Missing pinpoint.exe")
+            SPICEKernels.install_pinpoint()
+        
         return
 
 # TODO: Convert pck00010.tpc to native. Need to include unix2dos in requirements: conda install -c conda-forge unix2dos
