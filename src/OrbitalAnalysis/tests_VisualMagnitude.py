@@ -24,13 +24,19 @@ from Events import *
 
 #%% Simple Approximation
 
-def test_plot_visual_magnitude():
+def test_plot_visual_magnitude(Rsat=1.,p=0.175,gs='SSRD-1',min_el=0.):
     '''
     Plot the predicted visual magnitude of a satellite as a function of epoch and
     elevation. Compare several different methods.
+    
+    Inputs:
+        Rsat :  Radius of satellite (m)
+        p :     Reflectivity of satellite (fraction)
+        gs :    Name of ground stations
+        min_el : Minimum elevation of ground station (deg)
 
     '''
-    
+
     # Generate ephemeris times
     start_date = '2020-10-26 16:00:00.000' # Start Date e.g. '2020-10-26 16:00:00.000'
     stop_date =  '2020-11-25 15:59:59.999' # Stop Date e.g.  '2020-11-25 15:59:59.999'
@@ -41,12 +47,6 @@ def test_plot_visual_magnitude():
     start_et = et[0]
     stop_et = et[-1]
     
-    # Select groundstation
-    # gs = 'DSS-43'
-    gs = 'SSRD-1'
-    # gs = 'SSR-1'
-    # gs = 'SSR-2'
-    
     # Compute satellite lighting intervals
     satlight, satpartial, satdark = find_sat_lighting(start_et,stop_et)
     
@@ -54,7 +54,7 @@ def test_plot_visual_magnitude():
     gslight, gsdark = find_station_lighting(start_et,stop_et,station=gs)
     
     # Compute line-of-sight access intervals
-    los_access = find_access(start_et,stop_et,station=gs)
+    los_access = find_access(start_et,stop_et,station=gs,min_el=min_el)
     dflos = window_to_dataframe(los_access)
     
     # Compute visible (constrained) access intervals
@@ -74,12 +74,16 @@ def test_plot_visual_magnitude():
     
     
     # Compute Visual magnitudes
-    Rsat = 1 # Radius of satellite (m)
-    msat = compute_visual_magnitude(dftopo,Rsat,p=0.25,k=0.12) # Lambertian phase function
-    msat2 = compute_visual_magnitude(dftopo,Rsat,p=0.25,k=0.12,lambertian_phase_function=False) # Constant phase function v(alpha)=1
+    msat = compute_visual_magnitude(dftopo,Rsat,p=p,k=0.12) # Lambertian phase function
+    msat2 = compute_visual_magnitude(dftopo,Rsat,p=p,k=0.12,lambertian_phase_function=False) # Constant phase function v(alpha)=1
 
     # Flatfacet model
     msat_ff = compute_visual_magnitude_flatfacet(dftopo,Rsat,model='sphere',p=0.25,k=0.12)
+    
+    # Add visual magnitudes to dataframe
+    dftopo.insert(15,'m_lambertian',msat)
+    dftopo.insert(16,'m_const',msat2)
+    dftopo.insert(17,'m_ff',msat_ff)
     
     # Generate plots
     fig, (ax1,ax2) = plt.subplots(2,1,figsize=(8, 8))
@@ -102,7 +106,7 @@ def test_plot_visual_magnitude():
     fig.show()
     
     
-    return
+    return dftopo
 
 
 #%% Flat Facet Model
