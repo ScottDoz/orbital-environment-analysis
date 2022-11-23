@@ -28,6 +28,7 @@ import multiprocessing as mp
 from multiprocessing import Pool, freeze_support, RLock
 
 import pdb
+import time
 
 # Module imports
 from SatelliteData import query_norad
@@ -252,6 +253,180 @@ Overall Radar Detectability Score: {radar_detect_score}
     
     return results
 
+def run_analysis_optical(sat_dict,start_date,stop_date,step):
+    ''' Main DIT workflow with optical detection only. '''
+    
+    # 0. Check all generic kernels exist
+    SPICEKernels.check_generic_kernels()
+    
+    # Convert start and stop dates to Ephemeris Time
+    kernel_dir = get_data_home() / 'Kernels'
+    spice.furnsh( str(kernel_dir/'naif0012.tls') ) # Leap second kernel
+    start_et = spice.str2et(start_date)
+    stop_et = spice.str2et(stop_date)
+    scenario_duration = stop_et - start_et # Length of scenario (s)
+    
+    # Define a working folder to output the data
+    out_dir = get_data_home()/'DITdata'
+    # Check if directory exists and create
+    if not os.path.exists(str(out_dir)):
+        os.makedirs(str(out_dir))
+    
+    
+    # 1. Create Ephemeris files
+    # - Satellite Ephemeris file (sat.bsp)
+    # - SSR stations
+    # - SSRD stations
+    create_ephem_files(sat_dict,start_date,stop_date,step,method='two-body') # From elements
+    # create_ephem_files(NORAD,start_date,stop_date,step,method='tle') # From TLE
+    
+    # 2. Compute satellite lighting intervals
+    print('\nComputing Satellite Lighting intervals', flush=True)
+    satlight, satpartial, satdark = find_sat_lighting(start_et,stop_et)
+    satlight1 = spice.wnunid(satlight,satpartial) # Full or partial light
+    
+    # 3. Compute SSR and SSRD Station Lighting and access
+    # SSR: use min_el = 30 deg (120 deg cone angle from zenith)
+    # SSRD: use min_el = 5 deg (since targeted at satellite)
+    # dflos_ssr, dfvis_ssr, dfcomblos_ssr, dfcombvis_ssr = compute_station_access('SSR',start_et,stop_et,satlight1,30.,save=True)
+    dflos_ssrd, dfvis_ssrd, dfcomblos_ssrd, dfcombvis_ssrd = compute_station_access('SSRD',start_et,stop_et,satlight1,5.,save=True)
+    
+    # # 4. Optical Trackability
+    # # Compute from combined list of visible access dfvis_ssr
+    # # (Uses 49 SSR stations)
+    # optical_results = compute_tracking_stats(dfcombvis_ssr,scenario_duration)
+    # optical_score = optical_results['Score'].mean()
+    
+    # # 5. Radar Trackability
+    # # Compute from combined list of line-of-sight access dfcomblos_ssr
+    # # (Uses 49 SSR stations)
+    # radar_results = compute_tracking_stats(dfcomblos_ssr,scenario_duration)
+    # radar_score = radar_results['Score'].mean() # Total radar score
+
+    # 6. Optical Detectability
+    optical_detectability_results, best_station_opt_det = compute_optical_detectability(dfvis_ssrd)
+    opt_detect_score = optical_detectability_results['Score'].iloc[0]
+
+    
+    # # 7. Radar Detectability
+    # rcs = sat_dict['rcs'] # Extract RCS (m^2)
+    # radar_detectability_results, best_station_radar_det = compute_radar_detectability(dflos_ssrd, rcs) # Use LOS 
+    # radar_detect_score = radar_detectability_results['Score'].iloc[0]
+    
+    # Save results to dict ---------------------------------
+    # Results to return in python
+    results = {'SSRD_los':dflos_ssrd, 'SSRD_vis':dfvis_ssrd,
+                # 'SSR_los':dflos_ssr, 'SSR_vis':dfvis_ssr,
+                # 'radar_track_results':radar_results,'optical_track_results':optical_results,
+                # 'radar_track_score':radar_score,'optical_track_score':optical_score,
+                'optical_detect_results':optical_detectability_results,
+                'optical_detect_score': opt_detect_score}
+    
+    # JSON compatible version for saving
+    results1 = {'sat_dict':sat_dict,
+                # 'radar_track_results':radar_results.to_dict(),
+                # 'optical_track_results':optical_results.to_dict(),
+                'optical_detect_results':optical_detectability_results.to_dict(),
+                # 'radar_track_score':radar_score,
+                # 'optical_track_score':optical_score,
+                'optical_detect_score': opt_detect_score}
+    
+    
+    print("\n\n Results")
+    print("---------")
+    
+    # # Print Trackability Results
+    # print('\nRadar Trackability')
+    # print(radar_results)
+    # print("\nOverall T Radar Score: {}\n".format(radar_score))
+    
+    # print('\nOptical Trackability')
+    # print(optical_results)
+    # print("\nOverall T Optical Score: {}\n".format(optical_score))
+    
+    # Print Detectability Results
+    print('\nOptical Detectability')
+    print(optical_detectability_results)
+    print("\nOverall Optical Detectability Score: {}\n".format(opt_detect_score))
+    
+    # # Print Detectability Results
+    # print('\nRadar Detectability')
+    # print(radar_detectability_results)
+    # print("\nOverall Radar Detectability Score: {}\n".format(radar_detect_score))
+    
+    # Save results to json
+    # Save to file
+    import json
+    with open(out_dir/'Results.json', 'w+') as fp:
+        json.dump(results1, fp, sort_keys=True)
+    
+    # Formated results to txt
+    template = '''
+####################
+DIT Analysis Results
+####################
+
+Scenario
+--------
+Start Date: {start_date} UTGC ({start_et} ET)
+Stop Date:  {stop_date} UTGC ({stop_et} ET)
+Time Step: {step} s
+
+Target Satellite
+----------------
+SMA: {a} km \t  Semi-major axis
+ECC: {e} \t  Eccentricity
+INC: {i} deg \t  Inclination
+RAAN: {raan} deg \t Right Ascension of the Ascending Node
+AOP: {aop} deg \t Argument of Periapsis
+TA: {ta} deg \t True anomaly (at Epoch)
+Epoch: {epoch} {epoch_fmt} \t Epoch
+Propagator: Two-body
+
+Optical Detectability
+---------------------
+Best access station: {best_station_opt_det}
+
+{opt_detect_results}
+
+
+
+'''.format(**{  "start_date":str(start_date),
+                "start_et":str(start_et),
+                "stop_date":str(stop_date),
+                "stop_et":str(stop_et),
+                "step":str(step),
+                "a":str(sat_dict['SMA']),
+                "e":str(sat_dict['ECC']),
+                "i":str(sat_dict['INC']),
+                "raan":str(sat_dict['RAAN']),
+                "aop":str(sat_dict['AOP']),
+                "ta":str(sat_dict['TA']),
+                "epoch":str(sat_dict['Epoch']),
+                "epoch_fmt":str(sat_dict['DateFormat']),
+                # "radar_results":radar_results.to_string(index=False),
+                # "radar_score":radar_score,
+                # "optical_results":optical_results.to_string(index=False),
+                # "optical_score":optical_score,
+                "best_station_opt_det":best_station_opt_det,
+                "opt_detect_results":optical_detectability_results.to_string(index=False),
+                # "opt_detect_score":opt_detect_score,
+                
+                # "best_station_radar_det":best_station_radar_det,
+                # "radar_detect_results":radar_detectability_results.to_string(index=False),
+                # "radar_detect_score":radar_detect_score,
+                } )
+    
+    # Print and save results
+    print(template)
+    filename = out_dir/'DIT_Results.txt'
+    with  open(str(filename),'w+') as myfile:
+            myfile.write(template)    
+    
+    
+    return results
+
+
 
 
 #%% Subroutines
@@ -323,6 +498,8 @@ def compute_station_access(network,start_et,stop_et,satlight, min_el, save=False
     
     # Loop through stations
     # TODO: in paralellize this function
+    # stations = stations[:1] # FIXME: shortened list for testing
+    # stations = stations[28:] # FIXME: testing problem on station 28
     
     print('Computing {} Station Lighting and Access intervals'.format(network), flush=True)
     print('Stations: {}'.format(stations),flush=True)
@@ -330,14 +507,15 @@ def compute_station_access(network,start_et,stop_et,satlight, min_el, save=False
     dfvis = pd.DataFrame(columns=['Station','Access','Start','Stop','Duration'])
     los_access_list = [] # List of LOS access interval of stations
     vis_access_list = [] # List of visible access interval of stations
-    for gs in tqdm(stations):
+    for gs in tqdm(stations): 
         
-        # Compute station lighting intervals
+        # Compute station lighting intervals (~0.15 s)
         # gslight, gsdark = find_station_lighting(start_et,stop_et,station=gs,method='eclipse')
         gslight, gsdark = find_station_lighting(start_et,stop_et,station=gs,ref_el=ang_radius) # 0.268986 ref_el=-0.25
-    
-        # Compute line-of-sight access intervals
+        
+        # Compute line-of-sight access intervals (~22 s)
         # Use min_el = 30 deg (120 deg cone angle from zenith)
+        t_start = time.time()
         los_access = find_access(start_et,stop_et,station=gs,min_el=min_el)
         los_access_list.append(los_access) # Append to list of station access intervals
         # Convert to dataframe
@@ -345,8 +523,9 @@ def compute_station_access(network,start_et,stop_et,satlight, min_el, save=False
         dflos_i.insert(0,'Access',dflos_i.index)
         dflos_i.insert(0,'Station',gs)
         dflos = dflos.append(dflos_i) # Append to global dataframe
+        print('find_access: runtime {} s'.format(time.time() - t_start))
         
-        # Compute visible (constrained) access intervals
+        # Compute visible (constrained) access intervals (~ 0.004 s)
         # access = constrain_access_by_lighting(los_access,gslight,satdark)
         access = constrain_access_by_lighting(los_access,gsdark,satlight)
         vis_access_list.append(access) # Append to list of station access intervals
