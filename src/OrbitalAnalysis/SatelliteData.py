@@ -597,6 +597,224 @@ def _load_vishnu_experiment_data_single_month(mm: int, compute_params=True):
     return df
 
 
+#%% Generate Experiment Data --------------------------------------------------
+
+# Generate a new set of TLE data, similar to Vishnu, but with finer timesteps.
+# TLEs of the entire catalog over a full year.
+
+def generate_experiment_catalog_2019():
+    '''
+    Generate a new dataset of TLE data for the entire object catalog over a full
+    year (2019). This is equivalent to the Vishnu dataset, but with finer timesteps.
+    
+    Generate data every 10 days (36 sets in total).
+    
+    Strategy: 
+        - generate a list of start dates spaced 10 days apart starting 1 Jan
+        - generate a list of end dates 10 days from each start date
+        - this creates a list of intervals with a span of 10 days
+        - in each interval, query all TLEs of objects.
+        - this ensures every object has at least one tle
+        - group data by norad id, and keep only the earliest TLE (closest to the start date)
+        - write data to file, and move to next interval
+
+    '''
+    
+    
+    # Create file to hold data
+    DATA_DIR = get_data_home()/'TLE_catalog_2019' # Data path
+    DATA_DIR.mkdir(parents=True, exist_ok=True) # Create path if doesn't exist
+    
+    # Read spacetrack email and password from config.ini
+    config = configparser.ConfigParser()
+    config.read('config.ini')
+    email = config['Spacetrack']['email']
+    pw = config['Spacetrack']['pw']
+    
+    # Set up connection to client
+    from spacetrack import SpaceTrackClient
+    st = SpaceTrackClient(email, pw)
+    
+    import spacetrack.operators as op
+    import datetime as dt
+    import tletools
+    
+    # # Create time range
+    # d1 = dt.datetime(2023, 1, 1) # Start date (default 2000)
+    # d2 = dt.datetime.now() # dt.datetime(2030, 1, 1) # End date
+    # drange = op.inclusive_range(d1,d2)
+    
+    # Create list of time ranges
+    base1 = dt.datetime(2019, 1, 1)  # Reference date
+    base2 = dt.datetime(2019, 1, 11) # Reference date
+    d1_list = date_list = [base1 + dt.timedelta(days=i*10) for i in range(37)]
+    d2_list = date_list = [base2 + dt.timedelta(days=i*10) for i in range(37)]
+    
+    # https://www.space-track.org/basicspacedata/query/class/gp/EPOCH/%3Enow-30/orderby/NORAD_CAT_ID,EPOCH/format/3le
+    
+    print('Generating {} sets of TLEs. This may take some time.\n'.format(len(d1_list)),flush=True)
+    from tqdm import tqdm
+    for i in tqdm(range(len(d1_list))):
+    
+        # Stream download line by line
+        drange = op.inclusive_range(d1_list[i],d2_list[i])
+        lines = st.tle_publish(iter_lines=True, publish_epoch=drange, orderby='TLE_LINE1', format='tle')
+        
+        # Extract lines
+        tle_lines = [line for line in lines]
+        tle_lines = tle_lines
+        
+        # Insert 3rd line (name)
+        # The TLE-tools requires 3 line formats. Add an empty line as a placeholder
+        # for the name.
+        from itertools import chain
+        N = 2
+        k = ' '
+        res = list(chain(*[tle_lines[i : i+N] + [k] 
+                if len(tle_lines[i : i+N]) == N 
+                else tle_lines[i : i+N] 
+                for i in range(0, len(tle_lines), N)]))
+        # Insert first item
+        res.insert(0, k)
+        
+        # Write data to temp file (deleted on close)
+        import tempfile
+        tmp = tempfile.NamedTemporaryFile(delete=False)
+        with open(tmp.name, 'w') as fp:
+            for line in res:
+                fp.write(line + '\n')
+            # Extract relevant data to TLE objects
+            from tletools import TLE
+            tle_lines = TLE.load(fp.name)
+        
+        # Convert data to dataframe
+        data = [tle.__dict__ for tle in tle_lines] # List of dictionaries
+        df = pd.DataFrame(data)
+        
+        # Compute epoch
+        # Using TLE.epoch method
+        # TODO: replace this with faster method
+        epoch = [tle.epoch for tle in tle_lines]
+        df['epoch'] = epoch
+        
+        # Sort by epoch
+        df.sort_values(by='epoch',inplace=True,ignore_index=True)
+        
+        # Drop duplicates. Keep the first item (epoch closest to start of interval)
+        df = df.drop_duplicates(subset=['norad'],keep='first')
+        
+        # Compute orbital parameters
+        df = compute_orbital_params(df)
+        
+        # Save data
+        df.to_csv(str(DATA_DIR/'tle_{}.csv'.format(i)),index=False)
+        
+    return
+
+def load_2019_experiment_data(mm, compute_params=True):
+    '''
+    Load monthly satellite data from the year 2019.
+    
+    
+    Parameters
+    -------
+    mm : int, list, or str
+        Interval(s) of year to load (0-36).
+        int: Month of year to load (0-36).
+        list: Load data for a list of intervals
+        'all': Load data for all intervals
+    
+    '''
+    
+    if isinstance(mm, str):
+        if mm.lower() == 'all':
+            # Load all data
+            mm = [i for i in range(37)]
+    
+    # Loading cases
+    if isinstance(mm, int):
+        # Load data for single interval
+        df = _load_2019_experiment_data_single_epoch(mm, compute_params=compute_params)
+    
+    elif isinstance(mm, list):
+        # Load multiple datasets from a list of months
+        df = df = pd.DataFrame()
+        for m in mm:
+            dfm = _load_2019_experiment_data_single_epoch(m, compute_params=compute_params)
+            df = df.append(dfm) # Append
+    
+        # Sort data by epoch
+        df = df.sort_values(by=['NoradId','Epoch']).reset_index(drop=True)
+    
+    # Drop Name column
+    df = df.drop(['Name'], axis=1)
+    
+    # Merge name from satcat data
+    DATA_DIR = get_data_home() # Data home dir
+    dfs = pd.read_csv(DATA_DIR/'satcat.csv') # Satcat
+    dfs = dfs.rename(columns={'SATNAME':'Name'})
+    df = pd.merge(df,dfs[['NORAD_CAT_ID','Name']],how='left',left_on='NoradId',right_on='NORAD_CAT_ID')
+    
+    
+    return df
+
+
+
+def _load_2019_experiment_data_single_epoch(mm: int, compute_params=True):
+    '''
+    Load satellite data for a single month
+    
+    Parameters
+    -------
+    mm : int
+        Epoch to load (0-36).
+
+    '''
+    
+    # Error checking
+    if not isinstance(mm, int):
+        raise ValueError('mm must be int')
+    if (mm < 0) or (mm > 36):
+        raise ValueError('mm must be int 0 - 36')
+    
+    
+    # Get filename from month
+    DATA_DIR = get_data_home()/'TLE_catalog_2019' # Data path
+    # mm = str(mm).zfill(2) # Zero padded string 01-12
+    filename = DATA_DIR/'tle_{}.csv'.format(mm)
+    
+    # Read json data
+    df = pd.read_csv(filename)
+    
+    # Rename columns
+    df = df.rename(columns={'norad':'NoradId','name':'Name','epoch':'Epoch'})
+    
+    
+    # Drop missing data
+    df = df[pd.notnull(df.a)]
+    
+    # Convert NoradId to int
+    # df.NoradId = df.NoradId.astype(int) # Convert norad to int
+    df.NoradId = pd.to_numeric(df['NoradId'], errors='coerce').astype(pd.Int64Dtype())
+    
+    # Sort by NoradId
+    df = df.sort_values(by=['NoradId','Name']).reset_index(drop=True)
+    
+    # # Remove duplicates
+    # # Many objects contain two entries: one with a Name and one without.
+    # # Keep the named object (first entry after sort) and drop the unnamed one.
+    # df = df.drop_duplicates(subset='NoradId',keep='last')
+    
+    # For now, drop all duplicates
+    df = df.drop_duplicates(subset='NoradId',keep=False)
+    
+    # Compute orbital parameters
+    if compute_params:
+        df = compute_orbital_params(df)
+    
+    return df
+
+
 
 #%% Compute orbital Parameters ------------------------------------------------
 
