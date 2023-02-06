@@ -161,17 +161,6 @@ dfstats = df.groupby(by='NoradId').agg({'Name':['first'],
 # Drop items with only one or two measurements (~578 objects)
 dfstats = dfstats[dfstats['h']['count']>2]
 
-# Find satellites whose htheta values are monotonically increasing/decreasing
-mon_inc_flag = df.groupby(by='NoradId')['htheta'].apply(lambda x: x.is_monotonic_increasing)
-mon_dec_flag = df.groupby(by='NoradId')['htheta'].apply(lambda x: x.is_monotonic_decreasing)
-dfstats[('htheta','Trend')] = '' # Column labelling trend
-dfstats[('htheta','Trend')][mon_inc_flag] = 'Increasing'
-dfstats[('htheta','Trend')][mon_dec_flag] = 'Decreasing'
-
-# # Merge satellite name
-# dfstats = pd.merge(dfstats, df[['NoradId','Name']],how='left',on='NoradId')
-
-
 #%% Outlier removal
 
 # We want to remove any objects that have significant changes in their orbital elements
@@ -217,9 +206,14 @@ dfstats = dfstats[~ind]
 # ax.set_xlabel('h')
 # ax.set_ylabel('htheta')
 
+#%% Trends in htheta motion
 
-
-#%% Plots
+# Find satellites whose htheta values are monotonically increasing/decreasing
+mon_inc_flag = df.groupby(by='NoradId')['htheta'].apply(lambda x: x.is_monotonic_increasing)
+mon_dec_flag = df.groupby(by='NoradId')['htheta'].apply(lambda x: x.is_monotonic_decreasing)
+dfstats[('htheta','Trend')] = '' # Column labelling trend
+dfstats[('htheta','Trend')][mon_inc_flag] = 'Increasing'
+dfstats[('htheta','Trend')][mon_dec_flag] = 'Decreasing'
 
 # Indices of 
 # Prograde: i<90
@@ -233,6 +227,49 @@ indOsc = ~(indPro+indRetro)
 norad_Pro = list(dfstats[indPro].index)
 norad_Retro = list(dfstats[indRetro].index)
 norad_Osc = list(dfstats[indOsc].index)
+
+
+# Randomly sample 1000 objects of each type
+import random
+from random import sample
+random.seed(10)
+random_norad_Pro = sample(norad_Pro,200)
+random_norad_Retro = sample(norad_Retro,200)
+random_norad_Osc = sample(norad_Osc,200)
+
+# Generate a plot of objects demonstrating the differnet types of motion
+
+fig, ax = plt.subplots(3,1,figsize=(10, 8))
+# Plot Prograde
+for num in random_norad_Pro:
+    ax[0].plot(df['EpochDT'][df.NoradId == num],df['htheta'][df.NoradId == num],'-r',label='Prograde')
+for num in random_norad_Retro:
+    ax[1].plot(df['EpochDT'][df.NoradId == num],df['htheta'][df.NoradId == num],'-b',label='Retrograde')
+for num in random_norad_Osc:
+    ax[2].plot(df['EpochDT'][df.NoradId == num],df['htheta'][df.NoradId == num],'-k',label='Oscillating')
+# Axes [0] settings
+# ax[0].set_xlabel(r'Epoch',fontsize=16)
+ax[0].set_ylabel(r'$h_{\theta}$ (rad)',fontsize=16)
+handles, labels = ax[0].get_legend_handles_labels()
+labels, ids = np.unique(labels, return_index=True)
+handles = [handles[i] for i in ids]
+ax[0].legend(handles, labels, loc='best')
+# Axes [1] settings
+# ax[1].set_xlabel(r'Epoch',fontsize=16)
+ax[1].set_ylabel(r'$h_{\theta}$ (rad)',fontsize=16)
+handles, labels = ax[1].get_legend_handles_labels()
+labels, ids = np.unique(labels, return_index=True)
+handles = [handles[i] for i in ids]
+ax[1].legend(handles, labels, loc='best')
+# Axes [2] settings
+ax[2].set_xlabel(r'Epoch',fontsize=16)
+ax[2].set_ylabel(r'$h_{\theta}$ (rad)',fontsize=16)
+handles, labels = ax[2].get_legend_handles_labels()
+labels, ids = np.unique(labels, return_index=True)
+handles = [handles[i] for i in ids]
+ax[2].legend(handles, labels, loc='best')
+
+#%% Plots
 
 with_error_bars = False
 
