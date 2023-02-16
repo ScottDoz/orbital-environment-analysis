@@ -64,6 +64,7 @@ def compute_nodal_precession_rate(df):
 # df = load_vishnu_experiment_data('all')
 df = load_2019_experiment_data('all') # New dataset
 
+
 Re = 6378.137; #Radius of Earth (km)
 wE = 2*np.pi/(365.242199*86400) # Precession rate of the earth (rad/s)
 
@@ -148,6 +149,7 @@ dfstats = df.groupby(by='NoradId').agg({'Name':['first'],
                                         'h':['mean','std','min','max','median','mad','count'],
                                         'hz':['mean','std','min','max','median','mad','count'],
                                         'htheta':['mean','std','min','max','median','mad','count'],
+                                        'dhtheta':['mean','std','min','max','median','mad','count'],
                                         'hphi':['mean','std','min','max','median','mad','count'],
                                         'OMdot_p':['mean','std','min','max','median','mad','count'],
                                         'hthetadot':['mean','std','min','max','median','mad','count'],
@@ -158,15 +160,16 @@ dfstats = df.groupby(by='NoradId').agg({'Name':['first'],
                                         'p':['mean','std','min','max','median','mad','count'],
                                         })
 
-# Drop items with only one or two measurements (~578 objects)
-dfstats = dfstats[dfstats['h']['count']>2]
 
 #%% Outlier removal
 
 # We want to remove any objects that have significant changes in their orbital elements
 # These objects are undergoing active manouvering such as orbit raising and deorbiting.
 
-# First, remove any hyperbolic objects (those that have max(e) >= 1.)
+# First, drop items with only one or two measurements (~578 objects)
+dfstats = dfstats[dfstats['h']['count']>2]
+
+# Next, remove any hyperbolic objects (those that have max(e) >= 1.)
 # 4 objects:
 # Norad  Name
 # 29260 COSMOS 2422
@@ -288,11 +291,12 @@ else:
     plt.plot(dfstats['OMdot_p']['mean'][indRetro], dfstats['hthetadot']['mean'][indRetro], ".b", label='Retrograde') # Increasing
     plt.plot(dfstats['OMdot_p']['mean'][indOsc], dfstats['hthetadot']['mean'][indOsc], ".k", label='Oscillating') # Increasing
    
-ax.set_xlabel(r'$\dot \Omega$ (Predicted)',fontsize=16)
-ax.set_ylabel(r'$ \dot h_{\theta} $ (Measured)',fontsize=16)
+ax.set_xlabel(r'$\dot \Omega$ (Predicted) (rad/s)',fontsize=16)
+ax.set_ylabel(r'$ \dot h_{\theta} $ (Measured) (rad/s)',fontsize=16)
 ax.set_xlim(-1.7e-6,1.3e-6)
 ax.set_ylim(-1.7e-6,1.3e-6)
 plt.legend(loc=2)
+ax.set_aspect('equal', 'box')
 # plt.xscale('log')
 # plt.yscale('log')
 
@@ -317,6 +321,41 @@ plt.legend(loc=2)
 # plt.errorbar(dfstats['p']['mean'][indOsc], dfstats['OMdot_p']['mean'][indOsc], yerr=dfstats['OMdot_p']['std'][indOsc], fmt=".k", label='Oscillating') # Increasing
 # ax.set_xlabel('p')
 # ax.set_ylabel('OMdot_p (Predicted)')
+
+#%% 3D plots
+
+# # # Extract the first epoch
+df1 = df.groupby('NoradId').last()
+
+from Visualization import *
+midval = abs(df1.OMdot_p.min()/(df1.OMdot_p.max()-df1.OMdot_p.min()))
+colorscale = [[0, 'rgba(214, 39, 40, 0.85)'],   
+              [midval, 'rgba(255, 255, 255, 0.85)'],  
+              [1, 'rgba(6,54,21, 0.85)']],
+
+
+
+colorscale = [[0, 'red'], [0.57, 'grey'], [1.0, 'blue']]
+
+fig = plot_3d_scatter_numeric(df1,'hx','hy','hz',color='OMdot_p',
+                            colorscale=colorscale,
+                            color_label=u"\u03A9 (rad/s)",
+                            # color_label = r'$\dot \Omega$',
+                            # color_label = r'$\Delta t\textrm{(s)}$',
+                            xrange=[-120000,120000],
+                            yrange=[-120000,120000],
+                            zrange=[-50000,150000],
+                            aspectmode='cube',
+                            render=True,
+                            logColor=False,
+                            )
+
+# Note
+# For prograde motion (OMdot_p < 0), we find hz > 0 for all
+# Retrograde (OMdot_p > 0), we find hz < 0 for all
+
+# So, all of the objects above the plane hz=0 rotate counter-clockwise
+# all objects below the plane hz=0 rotate clock-wise
 
 
 

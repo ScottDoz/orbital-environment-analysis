@@ -25,18 +25,23 @@ from SatelliteData import *
 from utils import get_data_home
 import matplotlib.pyplot as plt
 import numpy as np
+import pdb
 
 # Load data
-df = load_vishnu_experiment_data('all')
+# df = load_vishnu_experiment_data('all')
+df = load_2019_experiment_data('all') # New dataset
 # TODO: Apply unwrapped to original dataframe (dtheta and dphi)
-df_copy = df.copy()
 
-dfstats = df.groupby(by='NoradId').agg({'h':['mean','std','min','max','median','mad','count'],
-                                        'hz':['mean','std','min','max','median','mad','count'],
-                                        'htheta':['mean','std','min','max','median','mad','count'],
-                                        'hphi':['mean','std','min','max','median','mad','count']})
 
-#%% Outlier Removal ###########################################################
+#%% hr Outlier Removal ########################################################
+
+# Compute stats
+dfstats = df.groupby(by='NoradId').agg({'hr':['mean','std','min','max','median','mad','count'],
+                                        # 'a':['mean','std','min','max','median','mad','count'],
+                                        # 'e':['mean','std','min','max','median','mad','count'],
+                                        # 'i':['mean','std','min','max','median','mad','count'],
+                                        })
+
 # TODO: Adjust analysis to look at wh rather than dhtheta (dh/dt)
 # TODO: Same workflow for dphi (proving that change in dphi is minimal)
 
@@ -44,7 +49,7 @@ dfstats = df.groupby(by='NoradId').agg({'h':['mean','std','min','max','median','
 # NOTES: Remove any objects with changes in their orbit (GTO to GEO). 
 
 # Looking at the plots h std vs. h mean, we want to remove outliers with large standard deviations.
-# We want to apply it to h_std
+# We want to apply it to h_std.
 
 # A more robust method is the modified Z-score method, using the median
 # and the median absolute deviation (MAD).
@@ -52,64 +57,90 @@ dfstats = df.groupby(by='NoradId').agg({'h':['mean','std','min','max','median','
 # Then remove any values with MZS > +/= 3.5
 # See Iglewicz & Hoaglin
 
+# Plot original data 
+fig, ax = plt.subplots(1,1,figsize=(8, 5))
+plt.text(0.15, 0.9, 'Raw data',ha='right', va='bottom',transform=plt.gca().transAxes)
+x = dfstats['hr']['mean']
+y = dfstats['hr']['std'] #/dfstats['hr']['mean']
+ax.plot(x,y,'.k')
+# ax.plot([x.min(),x.max()],[y.mean(),y.mean()],'-r')
+# ax.set_xlim([0,120000])
+ax.set_xlabel('$h_{r}$ mean (km$^{2}$/s)',fontsize=16)
+ax.set_ylabel('$h_{r}$ std (km$^{2}$/s)',fontsize=16)
+plt.xscale("log")
+plt.show()
+
+
 # Calculate the median and the mad of the h_std.
-median_h_std = dfstats[('h','std')].median()
-mad_h_std = dfstats[('h','std')].mad()
-Z = 0.6745*(dfstats[('h', 'std')]-median_h_std)/mad_h_std
-dfstats.insert(8,("h_std_MZS"),Z)
+median_hr_std = dfstats[('hr','std')].median()
+mad_hr_std = dfstats[('hr','std')].mad()
+Z = 0.6745*(dfstats[('hr', 'std')]-median_hr_std)/mad_hr_std
+dfstats['hr_std_MZS'] = ''
+dfstats['hr_std_MZS'] = Z
+# dfstats.insert(8,("hr_std_MZS"),Z)
 # Find indices with MZS>3.5 and remove them
-ind = (abs(dfstats.h_std_MZS)>3.5) # Outlier indices to remove
+ind = (abs(dfstats.hr_std_MZS)>3.5) # Outlier indices to remove
 dfstats = dfstats[~ind] # Original dataframe with outliers removed
 # Plotting
-fig, ax = plt.subplots(1,1,figsize=(8, 8))
-x = dfstats['h']['mean']
-y = dfstats['h']['std']/dfstats['h']['mean']
+fig, ax = plt.subplots(1,1,figsize=(8, 5))
+plt.text(0.15, 0.9, '1st Iteration',ha='right', va='bottom',transform=plt.gca().transAxes)
+x = dfstats['hr']['mean']
+y = dfstats['hr']['std'] #/dfstats['hr']['mean']
 ax.plot(x,y,'.k')
-ax.plot([x.min(),x.max()],[y.mean(),y.mean()],'-r')
-ax.set_xlim([0,2e5])
-ax.set_xlabel('h mean')
-ax.set_ylabel('h std')
+# ax.plot([x.min(),x.max()],[y.mean(),y.mean()],'-r')
+# ax.set_xlim([0,120000])
+ax.set_xlabel('$h_{r}$ mean (km$^{2}$/s)',fontsize=16)
+ax.set_ylabel('$h_{r}$ std (km$^{2}$/s)',fontsize=16)
+plt.xscale("log")
 plt.show()
 
 # Repeat second iteration
 # Calculate the median and the mad of the h_std.
-median_h_std = dfstats[('h','std')].median()
-mad_h_std = dfstats[('h','std')].mad()
-Z = 0.6745*(dfstats[('h', 'std')]-median_h_std)/mad_h_std
-dfstats['h_std_MZS'] = Z
+median_hr_std = dfstats[('hr','std')].median()
+mad_hr_std = dfstats[('hr','std')].mad()
+Z = 0.6745*(dfstats[('hr', 'std')]-median_hr_std)/mad_hr_std
+dfstats['hr_std_MZS'] = Z
 # Find indices with MZS>3.5 and remove them
-ind = (abs(dfstats.h_std_MZS)>3.5) # Outlier indices to remove
+ind = (abs(dfstats.hr_std_MZS)>3.5) # Outlier indices to remove
 dfstats = dfstats[~ind] # Original dataframe with outliers removed
 # Plotting
-fig, ax = plt.subplots(1,1,figsize=(8, 8))
-x = dfstats['h']['mean']
-y = dfstats['h']['std']/dfstats['h']['mean']
+fig, ax = plt.subplots(1,1,figsize=(8, 5))
+plt.text(0.99, 0.9, '2nd Iteration',ha='right', va='bottom',transform=plt.gca().transAxes)
+x = dfstats['hr']['mean']
+y = dfstats['hr']['std'] #/dfstats['hr']['mean']
 ax.plot(x,y,'.k')
-ax.plot([x.min(),x.max()],[y.mean(),y.mean()],'-r')
-ax.set_xlim([0,2e5])
-ax.set_xlabel('h mean')
-ax.set_ylabel('h std')
+# ax.plot([x.min(),x.max()],[y.mean(),y.mean()],'-r')
+# ax.set_xlim([0,120000])
+ax.set_xlabel('$h_{r}$ mean (km$^{2}$/s)',fontsize=16)
+ax.set_ylabel('$h_{r}$ std (km$^{2}$/s)',fontsize=16)
+plt.xscale("log")
 plt.show()
 
-# Repeat third iteration
-# Calculate the median and the mad of the h_std.
-median_h_std = dfstats[('h','std')].median()
-mad_h_std = dfstats[('h','std')].mad()
-Z = 0.6745*(dfstats[('h', 'std')]-median_h_std)/mad_h_std
-dfstats['h_std_MZS'] = Z
-# Find indices with MZS>3.5 and remove them
-ind = (abs(dfstats.h_std_MZS)>3.5) # Outlier indices to remove
-dfstats = dfstats[~ind] # Original dataframe with outliers removed
-# Plotting
-fig, ax = plt.subplots(1,1,figsize=(8, 8))
-x = dfstats['h']['mean']
-y = dfstats['h']['std']/dfstats['h']['mean']
-ax.plot(x,y,'.k')
-ax.plot([x.min(),x.max()],[y.mean(),y.mean()],'-r')
-ax.set_xlim([0,2e5])
-ax.set_xlabel('h mean')
-ax.set_ylabel('h std')
-plt.show()
+# # Repeat third iteration
+# # Calculate the median and the mad of the h_std.
+# median_hr_std = dfstats[('hr','std')].median()
+# mad_hr_std = dfstats[('hr','std')].mad()
+# Z = 0.6745*(dfstats[('hr', 'std')]-median_hr_std)/mad_hr_std
+# dfstats['hr_std_MZS'] = Z
+# # Find indices with MZS>3.5 and remove them
+# ind = (abs(dfstats.hr_std_MZS)>3.5) # Outlier indices to remove
+# dfstats = dfstats[~ind] # Original dataframe with outliers removed
+# # Plotting
+# fig, ax = plt.subplots(1,1,figsize=(8, 5))
+# plt.text(0.99, 0.9, '3rd Iteration',ha='right', va='bottom',transform=plt.gca().transAxes)
+# x = dfstats['hr']['mean']
+# y = dfstats['hr']['std'] #/dfstats['hr']['mean']
+# ax.plot(x,y,'.k')
+# # ax.plot([x.min(),x.max()],[y.mean(),y.mean()],'-r')
+# # ax.set_xlim([0,120000])
+# ax.set_xlabel('$h_{r}$ mean (km$^{2}$/s)',fontsize=16)
+# ax.set_ylabel('$h_{r}$ std (km$^{2}$/s)',fontsize=16)
+# plt.xscale("log")
+# plt.show()
+
+# Print average values
+print('\nAverage std(hr) = {}\n'.format(y.mean()))
+
 
 # After you remove the extreme outliers, you can run this again and get rid of the less extreme outliers.
 # You can iteratively apply it to get rid of all the outliers. (Run and then plot to inspect if there are outliers.)
@@ -129,12 +160,164 @@ plt.show()
 # # There are outliers that have large deviations. These may be object undergoing maneuvers. 
 # TODO: Getting the mean standard deviation of the objects in h, hphi, htheta
 
+
+#%% hz ###########
+# Regenerate dfstats
+dfstats = df.groupby(by='NoradId').agg({'hr':['mean','std','min','max','median','mad','count'],
+                                        'hz':['mean','std','min','max','median','mad','count'],
+                                        # 'htheta':['mean','std','min','max','median','mad','count'],
+                                        # 'hphi':['mean','std','min','max','median','mad','count'],
+                                        # 'a':['mean','std','min','max','median','mad','count'],
+                                        # 'e':['mean','std','min','max','median','mad','count'],
+                                        # 'i':['mean','std','min','max','median','mad','count'],
+                                        # 'q':['mean','std','min','max','median','mad','count'],
+                                        # 'p':['mean','std','min','max','median','mad','count'],
+                                        })
+
+
+# # Deliberate Outlier removal ------------------------------
+
+# # We want to remove any objects that have significant changes in their orbital elements
+# # These objects are undergoing active manouvering such as orbit raising and deorbiting.
+
+# # First, drop items with only one or two measurements (~578 objects)
+# dfstats = dfstats[dfstats['hz']['count']>2]
+
+
+# # Next, remove any hyperbolic objects (those that have max(e) >= 1.)
+# # 4 objects:
+# # Norad  Name
+# # 29260 COSMOS 2422
+# # 35653 COSMOS 2251 DEB
+# # 40747 DELTA 4 R/B
+# # 44338 CZ-3B R/B
+# ind = dfstats['e']['max']>=1.
+# dfstats = dfstats[~ind]
+
+
+# # Next, we find all objects that have de-orbited over the period of interest.
+# # These are objects whose minimum perigee is less than or equal to the earth radius.
+# ind = dfstats['q']['min']<=Re
+# # 44 objects
+# dfstats = dfstats[~ind]
+
+# # Now, remove any objects transitioning from GTO to GEO.
+# # These objects have maximum ahove GEO (a = 42,167 km), but a minimum periapsis
+# # much lower. 
+# # E.g. NoradId = 44053
+# Re = 6378.137; #Radius of Earth (km)
+# ind = (dfstats['a']['max'] > 40000) & (dfstats['q']['min'] < Re+5000)
+# # dfstats[[('a','min'),('a','max'),('q','min'),('q','max')]][ind]
+# dfstats = dfstats[~ind]
+# # -----------------------------------------------------------------------------
+
+# Plotting
+fig, ax = plt.subplots(1,1,figsize=(8, 5))
+plt.text(0.15, 0.9, 'Raw data',ha='right', va='bottom',transform=plt.gca().transAxes)
+x = dfstats['hz']['mean']
+y = dfstats['hz']['std']#/dfstats['hphi']['mean']
+ax.plot(x,y,'.k')
+# ax.plot([x.min(),x.max()],[y.mean(),y.mean()],'-r')
+#ax.set_xlim([0,2e5])
+ax.set_xlabel('$h_{z}$ mean (km$^{2}$/s)',fontsize=16)
+ax.set_ylabel('$h_{z}$ std (km$^{2}$/s)',fontsize=16)
+plt.xscale("log")
+plt.show()
+
+# Calculate the median and the mad of the hphi_std.
+median_hz_std = dfstats[('hz','std')].median()
+mad_hz_std = dfstats[('hz','std')].mad()
+Z = 0.6745*(dfstats[('hz', 'std')]-median_hz_std)/mad_hz_std
+dfstats["hz_std_MZS"] = ''
+dfstats["hz_std_MZS"] = Z
+# dfstats.insert(8,("hz_std_MZS"),Z)
+# Find indices with MZS>3.5 and remove them
+ind = (abs(dfstats.hz_std_MZS)>3.5) # Outlier indices to remove
+dfstats = dfstats[~ind] # Original dataframe with outliers removed
+print("{} points removed".format(sum(ind)))
+# Plotting
+fig, ax = plt.subplots(1,1,figsize=(8, 5))
+plt.text(0.15, 0.9, '1st Iteration',ha='right', va='bottom',transform=plt.gca().transAxes)
+x = dfstats['hz']['mean']
+y = dfstats['hz']['std'] #/dfstats['hphi']['mean']
+ax.plot(x,y,'.k')
+# ax.plot([x.min(),x.max()],[y.mean(),y.mean()],'-r')
+#ax.set_xlim([0,2e5])
+ax.set_xlabel('$h_{z}$ mean (km$^{2}$/s)',fontsize=16)
+ax.set_ylabel('$h_{z}$ std (km$^{2}$/s)',fontsize=16)
+plt.xscale("log")
+plt.show()
+
+# 2nd iteration
+# Calculate the median and the mad of the hphi_std.
+median_hz_std = dfstats[('hz','std')].median()
+mad_hz_std = dfstats[('hz','std')].mad()
+Z = 0.6745*(dfstats[('hz', 'std')]-median_hz_std)/mad_hz_std
+dfstats["hz_std_MZS"] = Z
+# Find indices with MZS>3.5 and remove them
+ind = (abs(dfstats.hz_std_MZS)>3.5) # Outlier indices to remove
+dfstats = dfstats[~ind] # Original dataframe with outliers removed
+print("{} points removed".format(sum(ind)))
+# Plotting
+fig, ax = plt.subplots(1,1,figsize=(8, 5))
+plt.text(0.15, 0.9, '2nd Iteration',ha='right', va='bottom',transform=plt.gca().transAxes)
+x = dfstats['hz']['mean']
+y = dfstats['hz']['std'] #/dfstats['hphi']['mean']
+ax.plot(x,y,'.k')
+# ax.plot([x.min(),x.max()],[y.mean(),y.mean()],'-r')
+#ax.set_xlim([0,2e5])
+ax.set_xlabel('$h_{z}$ mean (km$^{2}$/s)',fontsize=16)
+ax.set_ylabel('$h_{z}$ std (km$^{2}$/s)',fontsize=16)
+plt.xscale("log")
+plt.show()
+
+# # 3rd iteration
+# # Calculate the median and the mad of the hphi_std.
+# median_hz_std = dfstats[('hz','std')].median()
+# mad_hz_std = dfstats[('hz','std')].mad()
+# Z = 0.6745*(dfstats[('hz', 'std')]-median_hz_std)/mad_hz_std
+# dfstats["hz_std_MZS"] = Z
+# # Find indices with MZS>3.5 and remove them
+# ind = (abs(dfstats.hz_std_MZS)>3.5) # Outlier indices to remove
+# dfstats = dfstats[~ind] # Original dataframe with outliers removed
+# print("{} points removed".format(sum(ind)))
+# # Plotting
+# fig, ax = plt.subplots(1,1,figsize=(8, 5))
+# plt.text(0.15, 0.9, '3rd Iteration',ha='right', va='bottom',transform=plt.gca().transAxes)
+# x = dfstats['hz']['mean']
+# y = dfstats['hz']['std'] #/dfstats['hphi']['mean']
+# ax.plot(x,y,'.k')
+# # ax.plot([x.min(),x.max()],[y.mean(),y.mean()],'-r')
+# #ax.set_xlim([0,2e5])
+# ax.set_xlabel('$h_{z}$ mean (km$^{2}$/s)',fontsize=16)
+# ax.set_ylabel('$h_{z}$ std',fontsize=16)
+# plt.xscale("log")
+# plt.show()
+
+# Print average values
+print('\nAverage std(hz) = {}\n'.format(y.mean()))
+
+
+
 #%% hphi ###########
 # Regenerate dfstats
-dfstats = df.groupby(by='NoradId').agg({'h':['mean','std','min','max','median','mad','count'],
+dfstats = df.groupby(by='NoradId').agg({'hr':['mean','std','min','max','median','mad','count'],
                                         'hz':['mean','std','min','max','median','mad','count'],
                                         'htheta':['mean','std','min','max','median','mad','count'],
                                         'hphi':['mean','std','min','max','median','mad','count']})
+
+# Plotting
+fig, ax = plt.subplots(1,1,figsize=(8, 5))
+x = dfstats['hphi']['mean']
+y = dfstats['hphi']['std']#/dfstats['hphi']['mean']
+ax.plot(x,y,'.k')
+ax.plot([x.min(),x.max()],[y.mean(),y.mean()],'-r')
+#ax.set_xlim([0,2e5])
+ax.set_xlabel('$h_{\phi}$ mean',fontsize=16)
+ax.set_ylabel('$h_{\phi}$ std',fontsize=16)
+plt.show()
+
+
 
 # Calculate the median and the mad of the hphi_std.
 median_hphi_std = dfstats[('hphi','std')].median()
@@ -146,14 +329,14 @@ ind = (abs(dfstats.hphi_std_MZS)>3.5) # Outlier indices to remove
 dfstats = dfstats[~ind] # Original dataframe with outliers removed
 print("{} points removed".format(sum(ind)))
 # Plotting
-fig, ax = plt.subplots(1,1,figsize=(8, 8))
+fig, ax = plt.subplots(1,1,figsize=(8, 5))
 x = dfstats['hphi']['mean']
-y = dfstats['hphi']['std']#/dfstats['hphi']['mean']
+y = dfstats['hphi']['std'] #/dfstats['hphi']['mean']
 ax.plot(x,y,'.k')
 ax.plot([x.min(),x.max()],[y.mean(),y.mean()],'-r')
 #ax.set_xlim([0,2e5])
-ax.set_xlabel('hphi mean')
-ax.set_ylabel('hphi std')
+ax.set_xlabel('$h_{\phi}$ mean',fontsize=16)
+ax.set_ylabel('$h_{\phi}$ std',fontsize=16)
 plt.show()
 
 # Repeat second iteration
@@ -167,14 +350,14 @@ ind = (abs(dfstats.hphi_std_MZS)>3.5) # Outlier indices to remove
 dfstats = dfstats[~ind] # Original dataframe with outliers removed
 print("{} points removed".format(sum(ind)))
 # Plotting
-fig, ax = plt.subplots(1,1,figsize=(8, 8))
+fig, ax = plt.subplots(1,1,figsize=(8, 5))
 x = dfstats['hphi']['mean']
-y = dfstats['hphi']['std']#/dfstats['hphi']['mean']
+y = dfstats['hphi']['std'] #/dfstats['hphi']['mean']
 ax.plot(x,y,'.k')
 ax.plot([x.min(),x.max()],[y.mean(),y.mean()],'-r')
 #ax.set_xlim([0,2e5])
-ax.set_xlabel('hphi mean')
-ax.set_ylabel('hphi std')
+ax.set_xlabel('$h_{\phi}$ mean',fontsize=16)
+ax.set_ylabel('$h_{\phi}$ std',fontsize=16)
 plt.show()
 
 # Repeat third iteration
@@ -188,12 +371,12 @@ ind = (abs(dfstats.hphi_std_MZS)>3.5) # Outlier indices to remove
 dfstats = dfstats[~ind] # Original dataframe with outliers removed
 print("{} points removed".format(sum(ind)))
 # Plotting
-fig, ax = plt.subplots(1,1,figsize=(8, 8))
+fig, ax = plt.subplots(1,1,figsize=(8, 5))
 x = dfstats['hphi']['mean']
-y = dfstats['hphi']['std']#/dfstats['hphi']['mean']
+y = dfstats['hphi']['std'] #/dfstats['hphi']['mean']
 ax.plot(x,y,'.k')
 ax.plot([x.min(),x.max()],[y.mean(),y.mean()],'-r')
 #ax.set_xlim([0,2e5])
-ax.set_xlabel('hphi mean')
-ax.set_ylabel('hphi std')
+ax.set_xlabel('$h_{\phi}$ mean',fontsize=16)
+ax.set_ylabel('$h_{\phi}$ std',fontsize=16)
 plt.show()

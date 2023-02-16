@@ -424,13 +424,13 @@ def plot_3d_scatter_numeric(df,xlabel,ylabel,zlabel,color=None,
         # Select color data
         if color is not None:
             c = df[color]
-            if color_label is None:
-                color_label = color
             if logColor == True:
                 # Log of color
                 c = np.log10(c)
                 if color_label is None:
                     color_label = 'log('+color+')'
+            if color_label is None:
+                color_label = color
             
         # Select x,y,z data
         x = df[xlabel]
@@ -471,7 +471,7 @@ def plot_3d_scatter_numeric(df,xlabel,ylabel,zlabel,color=None,
                                 x=x,
                                 y=y,
                                 z=z,
-                                customdata=df[['Name','a','e','i','om','w']],
+                                customdata=df[['Name','a','e','i','om','w',color]],
                                 hovertext = df.Name,
                                 hoverinfo = 'text+x+y+z',
                                 hovertemplate=
@@ -484,6 +484,7 @@ def plot_3d_scatter_numeric(df,xlabel,ylabel,zlabel,color=None,
                                     "i: %{customdata[3]:.2f} deg<br>" +
                                     "om: %{customdata[4]:.2f} deg<br>" +
                                     "w: %{customdata[5]:.2f} deg<br>" +
+                                    "color: %{customdata[6]} <br>" +
                                     "",
                                 mode='markers',
                                 marker=dict(
@@ -493,6 +494,7 @@ def plot_3d_scatter_numeric(df,xlabel,ylabel,zlabel,color=None,
                                     opacity=0.8,
                                     colorbar=dict(thickness=20,
                                                   title=color_label,
+                                                  exponentformat='e',
                                                   lenmode='fraction', len=0.75)
                                 ),
                             )])
@@ -534,7 +536,6 @@ def plot_3d_scatter_numeric(df,xlabel,ylabel,zlabel,color=None,
         
         # Update axis ranges (optional)
         fig.update_xaxes(range = xrange)
-        
         
         
         # Render
@@ -846,6 +847,11 @@ def plot_2d_scatter_numeric(df,xlabel,ylabel,color,logColor=False,size=1.):
         # plot_bgcolor='rgb(0, 0, 0)',
         
         )
+    
+    fig.update_yaxes(
+        scaleanchor="x",
+        scaleratio=1,
+      )
         
     # Render
     plotly.offline.plot(fig, validate=False, filename='Scatter.html')
