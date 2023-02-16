@@ -465,3 +465,291 @@ def dist_edel(x1,x2,astflag=False):
     
     return dist
 
+#%% Angular Momentum Based Distances
+
+def dist_dhr(x1,x2):
+    '''
+    Absolute difference in hr radial component.
+
+    Parameters
+    ----------
+    x1 : TYPE
+        DESCRIPTION.
+    x2 : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    dist : TYPE
+        DESCRIPTION.
+
+    '''
+    
+    
+    # Extract elements
+    hr1 = x1.T
+    hr2 = x2.T
+    
+    # Dist ance
+    dist = abs(hr2-hr1)
+    
+    return dist
+
+def dist_dhz(x1,x2):
+    '''
+    Absolute difference in hz component.
+
+    Parameters
+    ----------
+    x1 : TYPE
+        DESCRIPTION.
+    x2 : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    dist : TYPE
+        DESCRIPTION.
+
+    '''
+    
+    
+    # Extract elements
+    hz1 = x1.T
+    hz2 = x2.T
+    
+    # Dist ance
+    dist = abs(hz2-hz1)
+    
+    return dist
+
+def dist_dhtheta(x1,x2,direction='min'):
+    '''
+    Relative difference in h theta component.
+
+    Parameters
+    ----------
+    x1 : TYPE
+        DESCRIPTION.
+    x2 : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    dist : TYPE
+        DESCRIPTION.
+
+    '''
+    
+    
+    # Extract elements
+    hth1 = x1.T
+    hth2 = x2.T
+    
+    # Wrap to [0,2*pi]
+    hth1 = hth1%(2*np.pi)
+    hth2 = hth2%(2*np.pi)
+    
+    # Compute difference accounting for direction
+    dth_retro = np.maximum(hth1,hth2) - np.minimum(hth1,hth2) # Retrograd: measure counter-clockwise
+    dth_pro = 2*np.pi - dth_retro # Prograde: measure clockwise
+    
+    # Select
+    if direction.lower() in ['retro','retrograde']:
+        dist = dth_retro
+    elif direction.lower() in ['pro','prograde']:
+        dist = dth_pro
+    else:
+        # Default - take min
+        dist = np.minimum(dth_pro,dth_retro)
+    
+    return dist
+
+def dist_htheta_arc(x1,x2,direction='min'):
+    '''
+    Arc length at mean radius spherical distance.
+    Distance metric defined by the arc length along a reference circle 
+    radius mean(r1,r2).
+    
+    dist = rmean*dtheta
+
+    Parameters
+    ----------
+    x1 : TYPE
+        DESCRIPTION.
+    x2 : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    dist : TYPE
+        DESCRIPTION.
+
+    '''
+    
+    # Extract elements
+    r1,th1 = x1.T
+    r2,th2 = x2.T
+    
+    # Compute mean radius
+    rmean = (r1+r2)/2
+    dr = abs(r2-r1) # Difference in radius
+    
+    # Wrap to [0,2*pi]
+    th1 = th1%(2*np.pi)
+    th2 = th2%(2*np.pi)
+    
+    # Compute difference accounting for direction
+    dth_retro = np.maximum(th1,th2) - np.minimum(th1,th2) # Retrograd: measure counter-clockwise
+    dth_pro = 2*np.pi - dth_retro # Prograde: measure clockwise
+    # Select
+    if direction.lower() in ['retro','retrograde']:
+        dth = dth_retro
+    elif direction.lower() in ['pro','prograde']:
+        dth = dth_pro
+    else:
+        # Default - take min
+        dth = np.minimum(dth_pro,dth_retro)
+    
+    # Compute arc distance
+    dist = rmean*abs(dth)
+    
+    return dist
+
+
+def dist_h_cyl(x1,x2,direction='min'):
+    '''
+    Mean radius cylindrical distance.
+    Distance metric defined by euclidean distance in cylindrical coordinates,
+    where the theta component is computed as the arc length at the mean radius
+    
+    dist = sqrt( dr^2 + (rmean*dtheta)^2 + dz^2)
+
+    Parameters
+    ----------
+    x1 : TYPE
+        DESCRIPTION.
+    x2 : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    dist : TYPE
+        DESCRIPTION.
+
+    '''
+    
+    # Extract elements
+    r1,th1,z1 = x1.T
+    r2,th2,z2 = x2.T
+    
+    # Compute mean radius
+    rmean = (r1+r2)/2
+    
+    # Compute differences
+    dr = r2-r1
+    dz = z2-z1
+    
+    # Wrap to [0,2*pi]
+    th1 = th1%(2*np.pi)
+    th2 = th2%(2*np.pi)
+    
+    # Compute difference accounting for direction
+    dth_retro = np.maximum(th1,th2) - np.minimum(th1,th2) # Retrograd: measure counter-clockwise
+    dth_pro = 2*np.pi - dth_retro # Prograde: measure clockwise
+    # Select
+    if direction.lower() in ['retro','retrograde']:
+        dth = dth_retro
+    elif direction.lower() in ['pro','prograde']:
+        dth = dth_pro
+    else:
+        # Default - take min
+        dth = np.minimum(dth_pro,dth_retro)
+    
+    # Compute distance
+    dist = np.sqrt(dr**2 + (rmean*dth)**2 + dz**2)
+    
+    return dist
+
+def dist_h_sph_mean(x1,x2):
+    '''
+    Mean radius spherical distance.
+    Distance metric defined by the great circle distance along a reference
+    sphere of radius mean(r1,r2). Extended in the radial direction.
+    
+    dist = sqrt( dr^2 + (rmean*Hav())^2 )
+
+    Parameters
+    ----------
+    x1 : TYPE
+        DESCRIPTION.
+    x2 : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    dist : TYPE
+        DESCRIPTION.
+
+    '''
+    
+    # Extract elements
+    r1,th1,phi1 = x1.T
+    r2,th2,phi2 = x2.T
+    
+    # Compute mean radius
+    rmean = (r1+r2)/2
+    dr = r2-r1 # Difference in radius
+    
+    # Compute great circle arc
+    hav = np.arccos( np.sin(phi1)*np.sin(phi2) + np.cos(phi1)*np.cos(phi2)*np.cos(th2-th1)  )
+    
+    # Compute distance
+    dist = np.sqrt(dr**2 + (rmean*hav)**2)
+    
+    return dist
+
+def dist_h_cyl_curv(x1,x2):
+    '''
+    Curvilinear cylindrical distance.
+    Distance metric defining the arc length of a path connecting two end points,
+    where r and z increase linearly with theta.
+    i.e. dr/dth = (r2-r1)/(th2-th1) = const and 
+    dz/dth = (z2-z1)/(th2-th1)
+
+    Parameters
+    ----------
+    x1 : TYPE
+        DESCRIPTION.
+    x2 : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    dist : TYPE
+        DESCRIPTION.
+
+    '''
+    
+    # Extract elements
+    r1,th1,z1 = x1.T
+    r2,th2,z2 = x2.T
+    
+    # Compute gradients
+    m1 = (r2-r1)/(th2-th1) # Gradient dr/dth
+    m2 = (z2-z1)/(th2-th1) # Gradient dz/dth
+    c1 = r1 - m1*th1 # Constant (intercept of r(theta) curve)
+    
+    # Compute arc length analytically
+    L = (1/(2*m1))*(( r2*np.sqrt(r2**2+m1**2+m2**2) + (m1**2+m2**2)*np.log(r2 + np.sqrt(r2**2+m1**2+m2**2) )  ) - \
+                    ( r1*np.sqrt(r1**2+m1**2+m2**2) + (m1**2+m2**2)*np.log(r1 + np.sqrt(r1**2+m1**2+m2**2) )  )
+                    ) 
+    
+    dist = abs(L)
+    
+    return dist
+
+
+
+
+

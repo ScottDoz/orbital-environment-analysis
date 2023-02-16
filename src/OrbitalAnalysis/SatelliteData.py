@@ -860,12 +860,15 @@ def compute_orbital_params(df):
     df['hx'] = np.sin(np.deg2rad(df.i))*np.sin(np.deg2rad(df.om))
     df['hy'] = -np.sin(np.deg2rad(df.i))*np.cos(np.deg2rad(df.om))
     df['hz'] = np.cos(np.deg2rad(df.i))
+    
     # Scale by angular momentum
     df['hx'] = df['h']*df['hx']
     df['hy'] = df['h']*df['hy']
     df['hz'] = df['h']*df['hz']
     
+    
     # Angular momentum in spherical coordinates
+    df['hr'] = np.sqrt(df.hx**2 + df.hy**2)
     df['hphi'] = np.arctan2(np.sqrt(df.hx**2 + df.hy**2),df.hz) # Polar angle (from z axis)
     df['htheta'] = np.arctan2(df.hy,df.hx) # Azimuth angle
     

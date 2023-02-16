@@ -95,5 +95,56 @@ def compute_distances(df,target,searchfield='norad'):
     x2[:,2:5] = np.deg2rad(x2[:,2:5]) # Convert angles to radians
     df['Edel'] = dist_edel(x1,x2,astflag=astflag)
     
+    # Angular Momentum parameters -------------------------------
+    
+    # dhr
+    x1 = df['hr'][df[searchfield] == target].to_numpy()
+    x1 = np.repeat(x1,N,axis=0) # Duplicate
+    x2 = df['hr'].to_numpy()
+    df['dHr']=dist_dhr(x1,x2)
+    
+    # dhz
+    x1 = df['hz'][df[searchfield] == target].to_numpy()
+    x1 = np.repeat(x1,N,axis=0) # Duplicate
+    x2 = df['hz'].to_numpy()
+    df['dHz']=dist_dhz(x1,x2)
+    
+    # dhtheta
+    x1 = df['htheta'][df[searchfield] == target].to_numpy()
+    x1 = np.repeat(x1,N,axis=0) # Duplicate
+    x2 = df['htheta'].to_numpy()
+    df['dHtheta']=dist_dhtheta(x1,x2)
+    
+    # Cylindrical Coords Distance
+    
+    # Mean arc length htheta arc length
+    x1 = df[['hr','htheta']][df[searchfield] == target].to_numpy()
+    x1 = np.repeat(x1,N,axis=0) # Duplicate
+    x2 = df[['hr','htheta']].to_numpy()
+    df['dHtheta_arc'] = dist_htheta_arc(x1,x2)
+    
+    # Cylindrical distance (extended mean radius arc length)
+    x1 = df[['hr','htheta','hz']][df[searchfield] == target].to_numpy()
+    x1 = np.repeat(x1,N,axis=0) # Duplicate
+    x2 = df[['hr','htheta','hz']].to_numpy()
+    df['dHcyl'] = dist_h_cyl(x1,x2)
+    
+    # # TODO: Cylindrical Curvilinear (dr/dtheta=const) f(hr,htheta,hz)
+    # x1 = df[['hr','htheta','hz']][df[searchfield] == target].to_numpy()
+    # x1 = np.repeat(x1,N,axis=0) # Duplicate
+    # x2 = df[['hr','htheta','hz']].to_numpy()
+    # df['dHcyl_curv']=dist_h_cyl_curv(x1,x2)
+    
+    # Spherical Coords
+    
+    # # Spherical mean radius great circle length
+    # x1 = df[['hr','htheta','hphi']][df[searchfield] == target].to_numpy()
+    # x1 = np.repeat(x1,N,axis=0) # Duplicate
+    # x2 = df[['hr','htheta','hphi']].to_numpy()
+    # df['dHsph_mean'] = dist_h_sph_mean(x1,x2)
+    
+    
+    
+    
     return df
 
