@@ -20,8 +20,8 @@ import numpy as np
 import pandas as pd
 import spiceypy as spice
 
-from utils import get_data_home
-from Ephem import get_ephem_TOPO
+from OrbitalAnalysis.utils import get_data_home
+from OrbitalAnalysis.DIT.Ephem import get_ephem_TOPO
 
 from scipy.signal import chirp, find_peaks, peak_widths, welch
 import matplotlib.pyplot as plt

@@ -11,14 +11,14 @@ Test functions
 
 """
 
-from SatelliteData import *
+from OrbitalAnalysis.SatelliteData import *
 # from Clustering import *
 # from DistanceAnalysis import *
 # from Visualization import *
-from DIT import *
-from Ephem import *
-from Events import *
-from VisualMagnitude import *
+from OrbitalAnalysis.DIT.DIT import *
+from OrbitalAnalysis.DIT.Ephem import *
+from OrbitalAnalysis.DIT.Events import *
+from OrbitalAnalysis.DIT.VisualMagnitude import *
 # from GmatScenario import *
 
 import matplotlib.pyplot as plt

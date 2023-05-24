@@ -28,7 +28,7 @@ from sgp4.api import Satrec
 import time
 import timeit
 
-from utils import get_data_home, get_root_dir
+from OrbitalAnalysis.utils import get_data_home, get_root_dir
 
 import pdb
 

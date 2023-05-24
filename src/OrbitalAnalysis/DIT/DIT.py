@@ -31,14 +31,14 @@ import pdb
 import time
 
 # Module imports
-from SatelliteData import query_norad
-from utils import get_data_home
-from Ephem import *
-from Events import *
-from Visualization import plot_time_windows, plot_visibility, plot_overpass_skyplot, plot_linkbudget
-from GroundstationData import get_groundstations
-from Communications import *
-from VisualMagnitude import *
+from OrbitalAnalysis.SatelliteData import query_norad
+from OrbitalAnalysis.utils import get_data_home
+from OrbitalAnalysis.DIT.Ephem import *
+from OrbitalAnalysis.DIT.Events import *
+from OrbitalAnalysis.Visualization import plot_time_windows, plot_visibility, plot_overpass_skyplot, plot_linkbudget
+from OrbitalAnalysis.DIT.GroundstationData import get_groundstations
+from OrbitalAnalysis.DIT.Communications import *
+from OrbitalAnalysis.DIT.VisualMagnitude import *
 # from GmatScenario import *
 
 

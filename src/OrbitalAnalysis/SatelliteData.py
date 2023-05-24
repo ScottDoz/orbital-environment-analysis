@@ -26,7 +26,7 @@ from sklearn.decomposition import PCA
 import pdb
 
 # Relative imports
-from utils import get_data_home
+from OrbitalAnalysis.utils import get_data_home
 
 
 #%% ASTRIAGraph access
