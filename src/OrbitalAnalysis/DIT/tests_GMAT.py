@@ -10,7 +10,7 @@ Tests for GMAT functions
 
 from SatelliteData import *
 from Clustering import *
-from DistanceAnalysis import *
+from Distances import *
 from Visualization import *
 from DIT import *
 from Ephem import *

@@ -5,11 +5,11 @@ Created on Mon Jul 18 12:09:26 2022
 @author: mauri
 """
 # Module imports
-from SatelliteData import *
-from Clustering import *
-from DistanceAnalysis import *
-from Visualization import *
-from utils import get_data_home
+from OrbitalAnalysis.SatelliteData import *
+from OrbitalAnalysis.Clustering import *
+from OrbitalAnalysis.Distances import *
+from OrbitalAnalysis.Visualization import *
+from OrbitalAnalysis.utils import get_data_home
 
 # from Overpass import *
 # from Ephem import *

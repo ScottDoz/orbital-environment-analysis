@@ -60,7 +60,7 @@ import time
 import pdb
 
 from OrbitalAnalysis.SatelliteData import *
-from OrbitalAnalysis.DistanceAnalysis import *
+from OrbitalAnalysis.Distances import *
 # from Visualization import *
 # from Clustering import *
 

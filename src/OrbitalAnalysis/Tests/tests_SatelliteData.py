@@ -8,10 +8,10 @@ Tests for satellite data and visualization
 
 """
 
-from SatelliteData import *
-from Clustering import *
-from DistanceAnalysis import *
-from Visualization import *
+from OrbitalAnalysis.SatelliteData import *
+from OrbitalAnalysis.Clustering import *
+from OrbitalAnalysis.Distances import *
+from OrbitalAnalysis.Visualization import *
 # from DIT import *
 # from Ephem import *
 # from Events import *
@@ -222,7 +222,7 @@ def test_distances():
     df = compute_distances(df, target)
     
     # Find the closest objects to the target (removing any related debris)
-    df[['name','a','e','dH']][~df.name.str.contains('COSMOS 1408')].sort_values(by='dH')
+    df[['Name','a','e','dH']][~df.Name.str.contains('COSMOS 1408')].sort_values(by='dH')
     
     # We find that two objects are fairly close in terms of dH metric to the target
     # (18421) COSMOS 1892, and (15495) SL-14 R/B.

@@ -19,7 +19,7 @@ import pandas as pd
 import pdb
 
 from OrbitalAnalysis.SatelliteData import *
-from OrbitalAnalysis.DistanceAnalysis import *
+from OrbitalAnalysis.Distances import *
 from OrbitalAnalysis.Visualization import *
 
 #%% Distance Metrics

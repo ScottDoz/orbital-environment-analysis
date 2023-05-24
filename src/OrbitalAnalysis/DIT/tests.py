@@ -13,7 +13,7 @@ Test functions
 
 from OrbitalAnalysis.SatelliteData import *
 # from Clustering import *
-# from DistanceAnalysis import *
+# from Distances import *
 # from Visualization import *
 from OrbitalAnalysis.DIT.DIT import *
 from OrbitalAnalysis.DIT.Ephem import *

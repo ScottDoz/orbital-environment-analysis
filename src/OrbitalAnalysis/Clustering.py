@@ -22,8 +22,8 @@ from sklearn.preprocessing import StandardScaler
 import pdb
 
 # Relative imports
-from SatelliteData import load_satellites
-from AsteroidData import load_asteroids
+from OrbitalAnalysis.SatelliteData import load_satellites
+from OrbitalAnalysis.AsteroidData import load_asteroids
 
 
 #%% Create clusters
