@@ -723,7 +723,7 @@ def plot_3d_scatter_cat(df,xlabel,ylabel,zlabel, cat, cat_order=None,
 
 #%% Scatter Plots
 
-def plot_2d_scatter_numeric(df,xlabel,ylabel,color,logColor=False,size=1.):
+def plot_2d_scatter_numeric(df,xlabel,ylabel,color,logColor=False,size=1.,equalscale=False):
     '''
     Generate a 2D scatter plot using any available numeric feilds as the x,y,
     and color coordinates. Returns an interactive scatter plot with hover data
@@ -848,10 +848,12 @@ def plot_2d_scatter_numeric(df,xlabel,ylabel,color,logColor=False,size=1.):
         
         )
     
-    fig.update_yaxes(
-        scaleanchor="x",
-        scaleratio=1,
-      )
+    # Apply equal axis scale
+    if equalscale:
+        fig.update_yaxes(
+            scaleanchor="x",
+            scaleratio=1,
+          )
         
     # Render
     plotly.offline.plot(fig, validate=False, filename='Scatter.html')
@@ -859,7 +861,8 @@ def plot_2d_scatter_numeric(df,xlabel,ylabel,color,logColor=False,size=1.):
     
     return
 
-def plot_2d_scatter_cat(df,xlabel,ylabel,cat, cat_order=None,
+def plot_2d_scatter_cat(df,xlabel,ylabel,cat, size=1.,
+                        cat_order=None,
                         xrange=[None,None],yrange=[None,None],
                         color_discrete_sequence=None,
                         aspectmode='auto',
@@ -943,7 +946,7 @@ def plot_2d_scatter_cat(df,xlabel,ylabel,cat, cat_order=None,
                                 "",
                             mode=mode,
                             marker=dict(
-                                size=1,
+                                size = size,
                                 color=color,
                                 # color = color_dict[region_name],
                                 opacity=0.8,
