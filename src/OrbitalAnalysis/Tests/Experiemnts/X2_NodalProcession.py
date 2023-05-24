@@ -9,8 +9,8 @@ of the satellite catalog over a one year period.
 
 """
 # Module imports
-from SatelliteData import *
-from utils import get_data_home
+from OrbitalAnalysis.SatelliteData import *
+from OrbitalAnalysis.utils import get_data_home
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -327,7 +327,7 @@ ax.set_aspect('equal', 'box')
 # # # Extract the first epoch
 df1 = df.groupby('NoradId').last()
 
-from Visualization import *
+from OrbitalAnalysis.Visualization import *
 midval = abs(df1.OMdot_p.min()/(df1.OMdot_p.max()-df1.OMdot_p.min()))
 colorscale = [[0, 'rgba(214, 39, 40, 0.85)'],   
               [midval, 'rgba(255, 255, 255, 0.85)'],  

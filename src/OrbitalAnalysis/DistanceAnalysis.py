@@ -14,7 +14,7 @@ Compute distances between sets of objects.
 import pdb
 
 # Relavive imports
-from DistanceMetrics import *
+from OrbitalAnalysis.DistanceMetrics import *
 
 #%% Computing distances
 

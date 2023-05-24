@@ -59,15 +59,15 @@ import time
 
 import pdb
 
-from SatelliteData import *
-from DistanceAnalysis import *
+from OrbitalAnalysis.SatelliteData import *
+from OrbitalAnalysis.DistanceAnalysis import *
 # from Visualization import *
 # from Clustering import *
 
 # from sr_tools.Astrodynamics.OrbitToOrbit import *
-from OrbitToOrbit import *
+from OrbitalAnalysis.OrbitToOrbit import *
 
-from utils import get_data_home
+from OrbitalAnalysis.utils import get_data_home
 
 # Supress pandas warnings
 pd.options.mode.chained_assignment = None  # default='warn'

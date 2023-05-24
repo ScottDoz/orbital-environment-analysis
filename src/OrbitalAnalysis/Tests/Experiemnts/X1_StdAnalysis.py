@@ -21,8 +21,8 @@ Results:
     
 """
 # Module imports
-from SatelliteData import *
-from utils import get_data_home
+from OrbitalAnalysis.SatelliteData import *
+from OrbitalAnalysis.utils import get_data_home
 import matplotlib.pyplot as plt
 import numpy as np
 import pdb

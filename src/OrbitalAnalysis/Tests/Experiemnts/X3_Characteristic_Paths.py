@@ -18,9 +18,9 @@ import pandas as pd
 
 import pdb
 
-from SatelliteData import *
-from DistanceAnalysis import *
-from Visualization import *
+from OrbitalAnalysis.SatelliteData import *
+from OrbitalAnalysis.DistanceAnalysis import *
+from OrbitalAnalysis.Visualization import *
 
 #%% Distance Metrics
 

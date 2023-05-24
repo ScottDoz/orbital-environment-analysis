@@ -24,9 +24,9 @@ import plotly.express as px
 
 import pdb
 
-from Ephem import *
-from Events import *
-from VisualMagnitude import *
+from OrbitalAnalysis.DIT.Ephem import *
+from OrbitalAnalysis.DIT.Events import *
+from OrbitalAnalysis.DIT.VisualMagnitude import *
 
 #%% Simple Histograms
 

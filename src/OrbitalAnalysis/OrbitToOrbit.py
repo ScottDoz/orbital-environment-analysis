@@ -32,8 +32,8 @@ from scipy import interpolate
 from scipy.signal import find_peaks
 
 # Module imports
-from Functions import sv_from_coe, coe_from_sv
-from optimizers import chandrupatla
+from OrbitalAnalysis.Functions import sv_from_coe, coe_from_sv
+from OrbitalAnalysis.optimizers import chandrupatla
 
 import pdb
 
