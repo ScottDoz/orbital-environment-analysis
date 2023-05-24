@@ -23,6 +23,11 @@ import spiceypy as spice
 from utils import get_data_home
 from Ephem import get_ephem_TOPO
 
+from scipy.signal import chirp, find_peaks, peak_widths, welch
+import matplotlib.pyplot as plt
+from scipy.interpolate import interp1d
+from scipy.optimize import brentq
+
 import pdb
 import time
 
@@ -494,10 +499,6 @@ def find_access(start_et,stop_et,station='DSS-43',min_el=0.):
     # See: http://constans.pbworks.com/w/file/fetch/120908295/Simple_Algorithms_for_Peak_Detection_in_Time-Serie.pdf
     
     # Find peaks and zero crossings
-    from scipy.signal import chirp, find_peaks, peak_widths, welch
-    import matplotlib.pyplot as plt
-    from scipy.interpolate import interp1d
-    from scipy.optimize import brentq
     y = el
     
     # Find indices of peaks
@@ -510,7 +511,7 @@ def find_access(start_et,stop_et,station='DSS-43',min_el=0.):
     # Returns widths, with heights, interpolated positions of left and right 
     # widths, h_eval, left_ips, right_ips = peak_widths(y, peaks, rel_height=np.finfo(float).eps) # Widths of peaks at x-crossing
     
-    # Find zero zero crossings (el==0)
+    # Find zero crossings (el==0)
     # Distinguish between upwards crossing (from -ve to +ve)
     # and downwards crossings (from +ve to -ve)
     crossings_up =   np.where((y[1:] >  0) * (y[:-1] <= 0))[0]  # Points where move from -ve to +ve
