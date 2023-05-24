@@ -22,7 +22,10 @@ import astropy
 from astroquery.jplhorizons import Horizons
 from astroquery.jplsbdb import SBDB
 import poliastro
-import pykep as pk
+try:
+    import pykep as pk
+except:
+    pass
 
 # Spice
 import spiceypy as spice
@@ -35,13 +38,16 @@ import plotly.graph_objects as go
 import plotly
 import plotly.express as px
 
-from skimage import measure
+# from skimage import measure
 # import cv2
 from skimage.feature import peak_local_max
 import scipy.signal
 
 # Package imports
-from Kepler import vectorized_kepler
+try:
+    from Kepler import vectorized_kepler
+except:
+    pass
 
 # Supress numpy warnings
 np.seterr(invalid='ignore')
@@ -723,7 +729,10 @@ def sv_from_coe(a,e,i,om,w,M,mu=1.32712440018E11,units='AU',E=None):
     
     # 1. Compute Eccentric anomaly
     if E is None:
-        E = Kepler(e,M) # Compute Ecentric anomaly
+        try:
+            E = Kepler(e,M) # Compute Ecentric anomaly
+        except:
+            E = Kepler_Newton(e,M) # Compute Ecentric anomaly
     # Get copy of Hyperbolic anomaly
     F = E.copy()
     
