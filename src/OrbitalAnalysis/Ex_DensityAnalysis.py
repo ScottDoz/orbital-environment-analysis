@@ -1279,8 +1279,9 @@ def example_animation():
         xe, ye, ze = rotate_z(x_eye, y_eye, z_eye, -t)
         frames.append(go.Frame(layout=dict(scene_camera_eye=dict(x=xe, y=ye, z=ze))))
     fig.frames=frames
-    
-    fig.show()
+
+    # fig.show()
+    plotly.offline.plot(fig)
     
     return
 
@@ -1352,7 +1353,8 @@ def fig2_animation():
         frames.append(go.Frame(layout=dict(scene_camera_eye=dict(x=xe, y=ye, z=ze))))
     fig.frames=frames
     
-    fig.show()
+    # fig.show()
+    plotly.offline.plot(fig)
     
     
     return
@@ -1518,6 +1520,11 @@ def fig2_gif():
     animation = animation.crop(x1=50, y1=100, x2=540, y2=570) # Crop video
     animation.write_gif("fig2.gif", fps=fps) # Save to gif
     # Animation size (620, 600)
+    
+    # Bug. Error in saving gif.
+    # Tried updating plotly
+    # >> conda install -c plotly plotly-orca
+    # Revert to pip install plotly 4.8.1 if unsuccessful
     
     return
 
