@@ -71,22 +71,36 @@ wE = 2*np.pi/(365.242199*86400) # Precession rate of the earth (rad/s)
 # Sort by Epoch
 df.sort_values(by=['NoradId','Epoch'],ascending=[True,True],inplace=True,ignore_index=True)
 
-# Unwrap multiple times to get the same range for all the objects
-df['htheta'] = df[['NoradId','htheta']].groupby(['NoradId']).transform(lambda x: np.unwrap(x))
+# # Unwrap multiple times to get the same range for all the objects
+# df['htheta'] = df[['NoradId','htheta']].groupby(['NoradId']).transform(lambda x: np.unwrap(x))
 
-# Unwrap multiple times to get the same range for all the objects
+# # Unwrap multiple times to get the same range for all the objects
+# df['w'] = np.deg2rad(df.w) # convert to radians
+# df['w'] = df[['NoradId','w']].groupby(['NoradId']).transform(lambda x: np.unwrap(x))
+# df['w'] = np.rad2deg(df.w) # Back to deg
+
+# # Unwrap multiple times to get the same range for all the objects
+# df['om'] = np.deg2rad(df.om) # convert to radians
+# df['om'] = df[['NoradId','om']].groupby(['NoradId']).transform(lambda x: np.unwrap(x))
+# df['om'] = np.rad2deg(df.om) # Back to deg
+
+# Alternative approach - single grouping
 df['w'] = np.deg2rad(df.w) # convert to radians
-df['w'] = df[['NoradId','w']].groupby(['NoradId']).transform(lambda x: np.unwrap(x))
-df['w'] = np.rad2deg(df.w) # Back to deg
-
-# Unwrap multiple times to get the same range for all the objects
 df['om'] = np.deg2rad(df.om) # convert to radians
-df['om'] = df[['NoradId','om']].groupby(['NoradId']).transform(lambda x: np.unwrap(x))
+print('Grouping Data',flush=True)
+dfg = df.groupby(['NoradId']) # Grouped dataframe
+print('Unwrapping htheta',flush=True)
+df['htheta'] = dfg['htheta'].transform(lambda x: np.unwrap(x))
+print('Unwrapping w',flush=True)
+df['w'] = dfg['w'].transform(lambda x: np.unwrap(x))
+print('Unwrapping om',flush=True)
+df['om'] = dfg['om'].transform(lambda x: np.unwrap(x))
+df['w'] = np.rad2deg(df.w) # Back to deg
 df['om'] = np.rad2deg(df.om) # Back to deg
 
-# Converting epoch to datetime format
-EpochDT = pd.to_datetime(df.Epoch)
-df.insert(8,("EpochDT"),EpochDT)
+# # Converting epoch to datetime format
+# EpochDT = pd.to_datetime(df.Epoch)
+# df.insert(8,("EpochDT"),EpochDT)
 
 
 #%% Theoretical nodal precession

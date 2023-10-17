@@ -518,7 +518,7 @@ def explore_coordinates():
     # 2D Scatter Plots --------------------------------------------------------
     
     # Figure 1. a-e, a-i, om-i
-    fig, axs = plt.subplots(3,1,figsize=(16, 5))
+    fig, axs = plt.subplots(1,3,figsize=(16, 5))
     # a,e
     axs[0].plot(df.a,df.e,'.k',markersize=0.2)
     axs[0].set_xlabel('Semi-major axis a (km)')
@@ -548,7 +548,7 @@ def explore_coordinates():
     
     # Figure 5. h-hz, PC1-PC2
     # Figure 1. a-e, a-i, om-i
-    fig, axs = plt.subplots(2,1,figsize=(12, 5))
+    fig, axs = plt.subplots(1,2,figsize=(12, 5))
     # a,e
     axs[0].plot(df.h,df.hz,'.k',markersize=0.2)
     axs[0].set_xlabel('Angular momentum magntiude $h$ ($km^{2}/s$)')
@@ -561,6 +561,36 @@ def explore_coordinates():
     axs[1].set_ylabel('PC2')
     axs[1].set_xlim([-50000, 150000]) #
     axs[1].set_ylim([-100000, 100000]) #
+    # fig.tight_layout()
+    # plt.subplot_tool()
+    plt.subplots_adjust(wspace=0.3)
+    plt.show()
+    
+    
+    # Figure 5 alternative
+    # hx vs hy , hz vs hx, PC1 vs PC2
+    fig, axs = plt.subplots(1,3,figsize=(12, 5))
+    # Hx-hz
+    axs[0].plot(df.hx,df.hz,'.k',markersize=0.2)
+    axs[0].set_xlabel('$h_{x}$ ($km^{2}/s$)', fontsize=14)
+    axs[0].set_ylabel('$h_{z}$ ($km^{2}/s$)', fontsize=14)
+    axs[0].set_xlim([-150000, 150000]) #
+    axs[0].set_ylim([-50000, 150000]) #
+    axs[0].set_aspect('equal', 'box')
+    # Hx-hy
+    axs[1].plot(df.hx,df.hy,'.k',markersize=0.2)
+    axs[1].set_xlabel('$h_{x}$ ($km^{2}/s$)', fontsize=14)
+    axs[1].set_ylabel('$h_{y}$ ($km^{2}/s$)', fontsize=14)
+    axs[1].set_xlim([-150000, 150000]) #
+    axs[1].set_ylim([-150000, 150000]) #
+    axs[1].set_aspect('equal', 'box')
+    # PC1-PC2
+    axs[2].plot(df.PC1,df.PC2,'.k',markersize=0.2)
+    axs[2].set_xlabel('PC1', fontsize=14)
+    axs[2].set_ylabel('PC2', fontsize=14)
+    axs[2].set_xlim([-50000, 150000]) #
+    axs[2].set_ylim([-100000, 100000]) #
+    axs[2].set_aspect('equal', 'box')
     # fig.tight_layout()
     # plt.subplot_tool()
     plt.subplots_adjust(wspace=0.3)
