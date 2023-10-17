@@ -662,12 +662,21 @@ def dist_h_cyl(x1,x2,direction='min'):
         dth = dth_retro
     elif direction.lower() in ['pro','prograde']:
         dth = dth_pro
+    elif direction.lower() in ['signed']:
+        # Signed direction
+        sign = np.sign(th2-th1) # Sign of direction
+        dth = abs(th2-th1)%(2*np.pi) # Wrap to 2pi
+        dth = dth*sign
+        
     else:
         # Default - take min
         dth = np.minimum(dth_pro,dth_retro)
     
     # Compute distance
     dist = np.sqrt(dr**2 + (rmean*dth)**2 + dz**2)
+    
+    if direction.lower() in ['signed']:
+        dist = dist*sign
     
     return dist
 
@@ -862,6 +871,7 @@ def compute_distances(df,target,searchfield='NoradId'):
     x1 = np.repeat(x1,N,axis=0) # Duplicate
     x2 = df[['hr','htheta','hz']].to_numpy()
     df['dHcyl'] = dist_h_cyl(x1,x2)
+    df['dHcyl_sign'] = dist_h_cyl(x1,x2,direction='signed')
     
     # # TODO: Cylindrical Curvilinear (dr/dtheta=const) f(hr,htheta,hz)
     # x1 = df[['hr','htheta','hz']][df[searchfield] == target].to_numpy()

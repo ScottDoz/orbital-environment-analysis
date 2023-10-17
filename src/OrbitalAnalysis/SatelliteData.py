@@ -482,7 +482,7 @@ def get_tle_historic(ID):
 # Download and unzip files to data home
 # ~/satellite_data/Data/dataverse_files
 
-def load_vishnu_experiment_data(mm, compute_params=True):
+def load_vishnu_experiment_data(mm, compute_params=True, compute_differentials=True):
     '''
     Load monthly satellite data from the year 2019.
     
@@ -519,8 +519,51 @@ def load_vishnu_experiment_data(mm, compute_params=True):
             dfm = _load_vishnu_experiment_data_single_month(m, compute_params=compute_params)
             df = df.append(dfm) # Append
     
-        # Sort data by epoch
-        df = df.sort_values(by=['NoradId','Epoch']).reset_index(drop=True)
+        
+        # Sort data by Epoch
+        df.sort_values(by=['NoradId','Epoch'],ascending=[True,True],inplace=True,ignore_index=True)
+        
+        # Converting epoch to datetime format
+        EpochDT = pd.to_datetime(df.Epoch)
+        df.insert(8,("EpochDT"),EpochDT)
+        
+        # Unwrap angles
+        
+        # # Method 2 group a single time (38 seconds)
+        # Alternative approach - single grouping
+        df['w'] = np.deg2rad(df.w) # convert to radians
+        df['om'] = np.deg2rad(df.om) # convert to radians
+        print('Grouping Data',flush=True)
+        dfg = df.groupby(['NoradId']) # Grouped dataframe
+        print('Unwrapping htheta',flush=True)
+        df['htheta'] = dfg['htheta'].transform(lambda x: np.unwrap(x))
+        print('Unwrapping w',flush=True)
+        df['w'] = dfg['w'].transform(lambda x: np.unwrap(x))
+        print('Unwrapping om',flush=True)
+        df['om'] = dfg['om'].transform(lambda x: np.unwrap(x))
+        df['w'] = np.rad2deg(df.w) # Back to deg
+        df['om'] = np.rad2deg(df.om) # Back to deg
+        
+        # # Method 3. Combined transform (49 seconds)
+        # df['w'] = np.deg2rad(df.w) # convert to radians
+        # df['om'] = np.deg2rad(df.om) # convert to radians
+        # print('Grouping Data',flush=True)
+        # dfg = df.groupby(['NoradId']) # Grouped dataframe
+        # print('Unwrapping htheta, w, om',flush=True)
+        # df[['htheta','om','w']] = dfg[['htheta','om','w']].transform(lambda x: np.unwrap(x))
+        # df['om'] = dfg['om'].transform(lambda x: np.unwrap(x))
+        # df['w'] = np.rad2deg(df.w) # Back to deg
+        # df['om'] = np.rad2deg(df.om) # Back to deg
+        
+        # Compute differentials dhtheta/dt
+        if compute_differentials:
+            
+            # Compute the observed rate of change in the htheta component between each epoch.
+            dhtheta = dfg['htheta'].diff() # htheta increment (rad)
+            dt = dfg['EpochDT'].diff().dt.total_seconds() # Time step (s)
+            df['htheta_dot'] = dhtheta/dt # Rate of change in htheta (rad/s)
+        
+        
     
     return df
 
@@ -639,25 +682,28 @@ def generate_experiment_catalog_2019():
     import datetime as dt
     import tletools
     
-    # # Create time range
-    # d1 = dt.datetime(2023, 1, 1) # Start date (default 2000)
-    # d2 = dt.datetime.now() # dt.datetime(2030, 1, 1) # End date
-    # drange = op.inclusive_range(d1,d2)
     
-    # Create list of time ranges
+    # Create list of time ranges. V2 5 days either side of each date
     base1 = dt.datetime(2019, 1, 1)  # Reference date
-    base2 = dt.datetime(2019, 1, 11) # Reference date
-    d1_list = date_list = [base1 + dt.timedelta(days=i*10) for i in range(37)]
-    d2_list = date_list = [base2 + dt.timedelta(days=i*10) for i in range(37)]
+    d0_list = date_list = [base1 + dt.timedelta(days=i*10) for i in range(37)] # query dates
+    # Ranges on either side
+    d1_list = [di - dt.timedelta(days=5) for di in d0_list] # Left bound
+    d2_list = [di + dt.timedelta(days=5) for di in d0_list] # Right bound
+
     
     # https://www.space-track.org/basicspacedata/query/class/gp/EPOCH/%3Enow-30/orderby/NORAD_CAT_ID,EPOCH/format/3le
     
     print('Generating {} sets of TLEs. This may take some time.\n'.format(len(d1_list)),flush=True)
     from tqdm import tqdm
     for i in tqdm(range(len(d1_list))):
-    
+        
+        # Get upper and lower bounds
+        target_epoch = d0_list[i]
+        min_epoch = d1_list[i]
+        max_epoch = d2_list[i]
+        
         # Stream download line by line
-        drange = op.inclusive_range(d1_list[i],d2_list[i])
+        drange = op.inclusive_range(min_epoch,max_epoch)
         lines = st.tle_publish(iter_lines=True, publish_epoch=drange, orderby='TLE_LINE1', format='tle')
         
         # Extract lines
@@ -700,6 +746,181 @@ def generate_experiment_catalog_2019():
         # Sort by epoch
         df.sort_values(by='epoch',inplace=True,ignore_index=True)
         
+        # Converting epoch to datetime format
+        df['epoch'] = pd.to_datetime(df.epoch.astype(str))
+        
+        # Drop TLEs outside of range
+        df = df[(df.epoch >= min_epoch) & (df.epoch <= max_epoch)]
+        
+        # Compute distance away from target epoch
+        df['time_from_epoch'] = abs(df['epoch'] - target_epoch)
+        
+        # Sort by closest
+        df.sort_values(by=['norad','time_from_epoch'],inplace=True,ignore_index=True)
+
+        # Drop duplicates. Keep the first item (epoch closest to target epoch)
+        df = df.drop_duplicates(subset=['norad'],keep='first')
+        
+        # Compute orbital parameters
+        df = compute_orbital_params(df)
+        
+        # Save data
+        df.to_csv(str(DATA_DIR/'tle_{}.csv'.format(i)),index=False)
+        
+    return
+
+
+
+def _old_generate_experiment_catalog_2019():
+    '''
+    Generate a new dataset of TLE data for the entire object catalog over a full
+    year (2019). This is equivalent to the Vishnu dataset, but with finer timesteps.
+    
+    Generate data every 10 days (36 sets in total).
+    
+    Strategy: 
+        - generate a list of start dates spaced 10 days apart starting 1 Jan
+        - generate a list of end dates 10 days from each start date
+        - this creates a list of intervals with a span of 10 days
+        - in each interval, query all TLEs of objects.
+        - this ensures every object has at least one tle
+        - group data by norad id, and keep only the earliest TLE (closest to the start date)
+        - write data to file, and move to next interval
+
+    '''
+    
+    
+    # Create file to hold data
+    DATA_DIR = get_data_home()/'TLE_catalog_2019' # Data path
+    DATA_DIR.mkdir(parents=True, exist_ok=True) # Create path if doesn't exist
+    
+    # Read spacetrack email and password from config.ini
+    config = configparser.ConfigParser()
+    config.read('config.ini')
+    email = config['Spacetrack']['email']
+    pw = config['Spacetrack']['pw']
+    
+    # Set up connection to client
+    from spacetrack import SpaceTrackClient
+    st = SpaceTrackClient(email, pw)
+    
+    import spacetrack.operators as op
+    import datetime as dt
+    import tletools
+    
+    # # Create time range
+    # d1 = dt.datetime(2023, 1, 1) # Start date (default 2000)
+    # d2 = dt.datetime.now() # dt.datetime(2030, 1, 1) # End date
+    # drange = op.inclusive_range(d1,d2)
+    
+    # # Create list of time ranges
+    # base1 = dt.datetime(2019, 1, 1)  # Reference date
+    # base2 = dt.datetime(2019, 1, 11) # Reference date
+    # d1_list = date_list = [base1 + dt.timedelta(days=i*10) for i in range(37)]
+    # d2_list = date_list = [base2 + dt.timedelta(days=i*10) for i in range(37)]
+    
+    # Create list of time ranges. V2 5 days either side of each date
+    base1 = dt.datetime(2019, 1, 1)  # Reference date
+    d0_list = date_list = [base1 + dt.timedelta(days=i*10) for i in range(37)] # query dates
+    # Ranges on either side
+    d1_list = [di - dt.timedelta(days=5) for di in d0_list] # Left bound
+    d2_list = [di + dt.timedelta(days=5) for di in d0_list] # Right bound
+
+    
+    # https://www.space-track.org/basicspacedata/query/class/gp/EPOCH/%3Enow-30/orderby/NORAD_CAT_ID,EPOCH/format/3le
+    
+    print('Generating {} sets of TLEs. This may take some time.\n'.format(len(d1_list)),flush=True)
+    from tqdm import tqdm
+    for i in tqdm(range(len(d1_list))):
+        
+        # Get upper and lower bounds
+        min_epoch = d1_list[i]
+        max_epoch = d2_list[i]
+        
+        # Stream download line by line
+        drange = op.inclusive_range(min_epoch,max_epoch)
+        lines = st.tle_publish(iter_lines=True, publish_epoch=drange, orderby='TLE_LINE1', format='tle')
+        
+        # Extract lines
+        tle_lines = [line for line in lines]
+        tle_lines = tle_lines
+        
+        # Insert 3rd line (name)
+        # The TLE-tools requires 3 line formats. Add an empty line as a placeholder
+        # for the name.
+        from itertools import chain
+        N = 2
+        k = ' '
+        res = list(chain(*[tle_lines[i : i+N] + [k] 
+                if len(tle_lines[i : i+N]) == N 
+                else tle_lines[i : i+N] 
+                for i in range(0, len(tle_lines), N)]))
+        # Insert first item
+        res.insert(0, k)
+        
+        # Write data to temp file (deleted on close)
+        import tempfile
+        tmp = tempfile.NamedTemporaryFile(delete=False)
+        with open(tmp.name, 'w') as fp:
+            for line in res:
+                fp.write(line + '\n')
+            # Extract relevant data to TLE objects
+            from tletools import TLE
+            tle_lines = TLE.load(fp.name)
+        
+        # Convert data to dataframe
+        data = [tle.__dict__ for tle in tle_lines] # List of dictionaries
+        df = pd.DataFrame(data)
+        
+        # Compute epoch
+        # Using TLE.epoch method
+        # TODO: replace this with faster method
+        epoch = [tle.epoch for tle in tle_lines]
+        df['epoch'] = epoch
+        
+        # Sort by epoch
+        df.sort_values(by='epoch',inplace=True,ignore_index=True)
+        
+        # Drop TLEs outside of range
+        df = df[(df.epoch >= min_epoch) & (df.epoch <= max_epoch)]
+        
+        return df, d0_list, d1_list, d2_list
+        
+        pdb.set_trace()
+        # Get max and min ranges of each
+        dfg = df.groupby(['norad']) # Grouped dataframe
+        dfstats = dfg.agg({'epoch':['count','min','max']})
+        
+        # Count number of tles in the range
+        tle_count = dfg['epoch'].apply(lambda x: ( (x >= min_x) & (x <= d2_list[i])  ).sum()).reset_index(name='count')
+        # None : ~60 objects - drop
+        # 1: 262 objects
+        # 2: 320 objects
+        # 3: 365 objects, ...
+        
+        # Strategy
+        # Drop objects with no TLEs in range
+        # Find closest TLE to the epoch - save
+        # Find interpolated TLE
+        
+        # Strategy 2
+        # Save all data in csv
+        # Move to next set
+        # Afterwards, load in all data and interpolate
+        # This is best!!!
+        
+        
+        
+        # Find satellites that have values within range
+        ind = (dfstats['epoch']['min']<=d2_list[i]) & (dfstats['epoch']['max']>=d1_list[i])
+        # ind = (dfstats['epoch']['min']<=d2_list[i]) & (dfstats['epoch']['max']>=d1_list[i])
+        
+        # Find cases where the max epoch is less than the start time
+        ind = dfstats[dfstats['epoch']['max']<d1_list[i]] # ~ 60 objects excluded
+        # TODO: Exclude data from these ones nan
+        # For the rest, drop all values epoch < min
+        # Then keep first
+        
         # Drop duplicates. Keep the first item (epoch closest to start of interval)
         df = df.drop_duplicates(subset=['norad'],keep='first')
         
@@ -711,7 +932,7 @@ def generate_experiment_catalog_2019():
         
     return
 
-def load_2019_experiment_data(mm, compute_params=True):
+def load_2019_experiment_data(mm, compute_params=True, compute_differentials=True):
     '''
     Load monthly satellite data from the year 2019.
     
@@ -741,13 +962,60 @@ def load_2019_experiment_data(mm, compute_params=True):
         df = df = pd.DataFrame()
         for m in mm:
             dfm = _load_2019_experiment_data_single_epoch(m, compute_params=compute_params)
+            # # Add label for the set epoch
+            dfm.insert(9,("Set"),m)
             df = df.append(dfm) # Append
     
-        # Sort data by epoch
-        df = df.sort_values(by=['NoradId','Epoch']).reset_index(drop=True)
+        # Sort data by Epoch
+        df.sort_values(by=['NoradId','Epoch'],ascending=[True,True],inplace=True,ignore_index=True)
+        
+        # Converting epoch to datetime format
+        EpochDT = pd.to_datetime(df.Epoch)
+        df.insert(8,("EpochDT"),EpochDT)
+        
+        
+                
+        # Unwrap angles
+        
+        # # Method 2 group a single time (38 seconds)
+        # Alternative approach - single grouping
+        df['w'] = np.deg2rad(df.w) # convert to radians
+        df['om'] = np.deg2rad(df.om) # convert to radians
+        print('Grouping Data',flush=True)
+        dfg = df.groupby(['NoradId']) # Grouped dataframe
+        print('Unwrapping htheta',flush=True)
+        df['htheta'] = dfg['htheta'].transform(lambda x: np.unwrap(x))
+        print('Unwrapping w',flush=True)
+        df['w'] = dfg['w'].transform(lambda x: np.unwrap(x))
+        print('Unwrapping om',flush=True)
+        df['om'] = dfg['om'].transform(lambda x: np.unwrap(x))
+        df['w'] = np.rad2deg(df.w) # Back to deg
+        df['om'] = np.rad2deg(df.om) # Back to deg
+        
+        # # Method 3. Combined transform (49 seconds)
+        # df['w'] = np.deg2rad(df.w) # convert to radians
+        # df['om'] = np.deg2rad(df.om) # convert to radians
+        # print('Grouping Data',flush=True)
+        # dfg = df.groupby(['NoradId']) # Grouped dataframe
+        # print('Unwrapping htheta, w, om',flush=True)
+        # df[['htheta','om','w']] = dfg[['htheta','om','w']].transform(lambda x: np.unwrap(x))
+        # df['om'] = dfg['om'].transform(lambda x: np.unwrap(x))
+        # df['w'] = np.rad2deg(df.w) # Back to deg
+        # df['om'] = np.rad2deg(df.om) # Back to deg
+
+        # Compute differentials dhtheta/dt
+        if compute_differentials:
+            
+            # Compute the observed rate of change in the htheta component between each epoch.
+            dhtheta = dfg['htheta'].diff() # htheta increment (rad)
+            dt = dfg['EpochDT'].diff().dt.total_seconds() # Time step (s)
+            df['htheta_dot'] = dhtheta/dt # Rate of change in htheta (rad/s)
     
     # Drop Name column
     df = df.drop(['Name'], axis=1)
+    
+    # Remove measurements outside timeframe
+    df = df[df.epoch_year>=2019]
     
     # Merge name from satcat data
     DATA_DIR = get_data_home() # Data home dir
@@ -872,6 +1140,21 @@ def compute_orbital_params(df):
     df['hphi'] = np.arctan2(np.sqrt(df.hx**2 + df.hy**2),df.hz) # Polar angle (from z axis)
     df['htheta'] = np.arctan2(df.hy,df.hx) # Azimuth angle
     
+    # Compute Nodal Precession Rate due to J2 effect
+    # OMdot = -(3/2)*J2*(Re/p)^2*n*cos(i)
+    
+    # where
+    # p = a(1-e^2) is the semi-latus rectum
+    # n = sqrt(mu/a^3) is the mean motion
+    # i is the inclination
+    # Re = radius of the Earth
+    # J2 is the zonal harmonic coefficient
+    Re = 6378.137; #Radius of Earth (km)
+    J2 = 1.08262668e-3; #J2 constant of Earth
+    mu = 3.986004418e5; # Gravitational parameter of Earth (km3s-2)
+    n = np.sqrt(mu/df.a**3) # Mean motion
+    p = df.a*(1-df.e**2) # Semi-latus rectum
+    df['om_dot'] = -(3./2.)*J2*((Re/p)**2)*n*np.cos(np.deg2rad(df.i))
     
     # # Rearange dataframe
     # df = df[['name','norad','classification', 'int_desig',  # Designations
