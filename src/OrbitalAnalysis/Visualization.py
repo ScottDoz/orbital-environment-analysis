@@ -471,6 +471,7 @@ def plot_3d_scatter_numeric(df,xlabel,ylabel,zlabel,color=None,
                                 x=x,
                                 y=y,
                                 z=z,
+                                name='Catalog',
                                 customdata=df[['Name','a','e','i','om','w',color]],
                                 hovertext = df.Name,
                                 hoverinfo = 'text+x+y+z',
@@ -1838,3 +1839,113 @@ def plot_overpass_magnitudes(dftopo, dfa):
     del dftopo1
 
     return
+
+#%% Gif of rotations
+
+def animation_angular_momentum():
+    
+    # Load all data
+    # Sort by epoch, NoradId
+    
+    # Note: Use  fig.to_image(format="png", engine="kaleido")
+    
+    from OrbitalAnalysis.SatelliteData import load_2019_experiment_data
+    
+    df = load_2019_experiment_data('all')
+    df = df.sort_values(by=['Set', 'NoradId']) # Order by set, norad
+    df['marker_size'] = 0.1
+    
+    # Animation
+    # See: https://towardsdatascience.com/two-quick-codes-to-animate-your-plots-ecbaa99cd127
+    
+    colorscale = [[0, 'red'], [0.57, 'grey'], [1.0, 'blue']]
+    
+    fig = px.scatter_3d(df, x="hx", y="hy", z='hz', 
+                        color='om_dot',color_continuous_scale=colorscale,
+                     # size='marker_size', 
+                     animation_frame="Set", 
+                     animation_group="NoradId", 
+                     hover_name="Name", 
+                     range_x=[-120000,120000], range_y=[-120000,120000], range_z=[-50000,150000],
+                     range_color=(df.om_dot.min(),df.om_dot.max())
+                     )
+    fig.update_traces(marker={'size': 1})
+    
+    # Update figure title and layout
+    
+    # Axes
+    xrange=[-120000,120000]
+    yrange=[-120000,120000]
+    zrange=[-50000,150000]
+    aspectmode='cube'
+    xaxis=go.layout.scene.XAxis(title='hx',gridcolor='white',gridwidth=1,range=xrange)
+    yaxis=go.layout.scene.YAxis(title='hy',gridcolor='white',gridwidth=1,range=yrange)
+    zaxis=go.layout.scene.ZAxis(title='hz',gridcolor='white',gridwidth=1,range=zrange)
+    
+    
+    fig.update_layout(
+        # title='2D Scatter',
+        title_x = 0.5,
+        scene=go.layout.Scene(
+            xaxis=xaxis,
+            yaxis=yaxis,
+            zaxis=zaxis,
+            aspectmode=aspectmode,
+        ),
+        # paper_bgcolor='rgb(243, 243, 243)',
+        # plot_bgcolor='rgb(243, 243, 243)',
+        # paper_bgcolor='rgb(0, 0, 0)',
+        # plot_bgcolor='rgb(0, 0, 0)',
+        margin=dict(l=20, r=20, t=20, b=20)
+        )
+    
+    
+    
+    # fig.update_layout(height=600, width=1000)
+    
+    
+    # Render
+    plotly.offline.plot(fig, validate=False)
+    
+    
+    # generate images for each step in animation
+    import tqdm
+    import PIL
+    import io
+    from io import BytesIO
+    import imageio
+    frames = []
+    for s, fr in tqdm.tqdm(enumerate(fig.frames)):
+        # set main traces to appropriate traces within plotly frame
+        print(s)
+        fig.update(data=fr.data)
+        # move slider to correct place
+        fig.layout.sliders[0].update(active=s)
+        # generate image of current state
+        imgraw = BytesIO(fig.to_image(format="png",engine="kaleido")) # Raw image
+        img = PIL.Image.open(imgraw)
+        # Write frame
+        img.save('frame{}.png'.format(s))
+        
+        # img = PIL.Image.open(io.BytesIO(fig.to_image(format="png",engine="kaleido")))
+        # frames.append(PIL.Image.open(io.BytesIO(fig.to_image(format="png",engine="kaleido"))))
+        
+    
+    # Frames to gif
+    png_dir = r'C:\Users\scott\Documents\Repos\orbital-environment-analysis\src\OrbitalAnalysis\frames'
+    from natsort import natsorted
+    images = []
+    # files = ['frame{}.png'.format(i) for i in range()]
+    for file_name in natsorted(os.listdir(png_dir)):
+        if file_name.endswith('.png'):
+            file_path = os.path.join(png_dir, file_name)
+            images.append(imageio.imread(file_path))
+    
+    # Make it pause at the end so that the viewers can ponder
+    for _ in range(10):
+        images.append(imageio.imread(file_path))
+
+    imageio.mimsave('movie.gif', images, duration=0.2)
+
+    
+    return fig
