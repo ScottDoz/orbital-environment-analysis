@@ -1228,3 +1228,36 @@ def compute_principal_components(df,n_components=10):
     # For discussion on feature importances
     
     return df
+
+
+#%% Socrates Close Approach Data
+# https://celestrak.org/SOCRATES/socrates-format.php
+    
+
+def load_socrates():
+    '''
+    Load Socrates close approach data.
+    
+    Data downloaded from
+    https://celestrak.org/SOCRATES/sort-minRange.csv
+    https://celestrak.org/SOCRATES/sort-maxProb.csv
+
+    Returns
+    -------
+    df : TYPE
+        DESCRIPTION.
+
+    '''
+    
+    # Get data directory
+    DATA_DIR = get_data_home()
+    
+    # Load data
+    # filename = DATA_DIR/'Socrates'/'sort-maxProb.csv'
+    filename = DATA_DIR/'Socrates'/'sort-minRange.csv'
+    df = pd.read_csv(filename)
+    
+    # Convert Time of Closest Approach to datetime
+    df.TCA = pd.to_datetime(df.TCA)
+    
+    return df
