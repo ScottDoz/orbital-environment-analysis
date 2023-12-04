@@ -3,10 +3,11 @@ sgp4
 matplotlib
 natsort
 numpy
-pandas
+pandas==1.5.3
 scikit-learn
 spacetrack
 spiceypy
 TLE-tools
-tletools
+#tletools
 tqdm
+trimesh

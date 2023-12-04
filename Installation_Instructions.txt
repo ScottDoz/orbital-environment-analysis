@@ -1,0 +1,33 @@
+Instructions for installing
+===========================
+
+1. (Recomended) Create new virtual environment
+>> conda create -n ssr python=3.9
+
+2. Clone directory
+>> git clone https://github.com/ScottDoz/orbital-environment-analysis.git
+
+3. Install requirements
+cd to direectory of requirements.txt
+>> conda activate ssr
+>> pip install -r requirements.txt
+
+3. Run tests.py
+First, run the tests.py file to check for missing dependencies.
+cd to DIT directory
+>> cd src/OrbitalAnalysis/DIT
+
+Run the script
+>> python tests.py
+Check that you do not get any errors from missing packages. If so, install them with pip.
+
+4. Run analysis
+Open tests.py in an IDE. Run the script, then run the function test_run_analysis()
+Otherwise, run from command line
+>> python
+>> from tests import *
+>> test_run_analysis()
+
+
+
+
