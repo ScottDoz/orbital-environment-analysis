@@ -523,6 +523,7 @@ def compute_station_access(network,start_et,stop_et,satlight, min_el, save=False
         dflos_i.insert(0,'Access',dflos_i.index)
         dflos_i.insert(0,'Station',gs)
         dflos = dflos.append(dflos_i) # Append to global dataframe
+        # dflos = pd.concat([dflos, dflos_i], ignore_index=True) # FIXME: replace with this new version
         print('find_access: runtime {} s'.format(time.time() - t_start))
         
         # Compute visible (constrained) access intervals (~ 0.004 s)
