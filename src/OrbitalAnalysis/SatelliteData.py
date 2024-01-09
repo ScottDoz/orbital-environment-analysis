@@ -21,7 +21,7 @@ from pathlib import Path
 import os
 import configparser
 import spiceypy as spice
-from sklearn.decomposition import PCA
+#from sklearn.decomposition import PCA
 
 import pdb
 
