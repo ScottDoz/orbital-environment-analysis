@@ -4,6 +4,9 @@ Instructions for installing
 1. (Recomended) Create new virtual environment
 >> conda create -n ssr python=3.9
 
+1.1. Activate environment
+>> conda activate ssr
+
 2. Clone directory
 >> git clone https://github.com/ScottDoz/orbital-environment-analysis.git
 
