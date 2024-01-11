@@ -15,6 +15,13 @@ cd to direectory of requirements.txt
 >> conda activate ssr
 >> pip install -r requirements.txt
 
+3.1 (Optional) Install Spyder
+>> pip install spyder
+Make sure to open the correct version of spyder to run the code.
+
+3.1. Confirm installations
+>> conda list
+
 3. Run tests.py
 First, run the tests.py file to check for missing dependencies.
 cd to DIT directory
