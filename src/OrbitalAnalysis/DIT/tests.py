@@ -46,39 +46,45 @@ def test_run_analysis():
     start_date = '2020-10-26 16:00:00.000' # Start Date e.g. '2020-10-26 16:00:00.000'
     stop_date =  '2020-11-25 15:59:59.999' # Stop Date e.g.  '2020-11-25 15:59:59.999'
     step = 10. # Time step (sec)
-    # Satellite-Maya Example
+    
+    # # Satellite-Maya Example
+    # save_folder = 'mydata'
     # sat_dict = {"DateFormat": "UTCGregorian", "Epoch": '26 Oct 2020 16:00:00.000',
     #             "SMA": 6963.0, "ECC": 0.0188, "INC": 97.60,
     #             "RAAN": 308.90, "AOP": 81.20, "TA": 0.00,
     #             "rcs": 0.55}
     
     # # Steller Outer Shell Rating
+    # save_folder = 'mydata'
     # sat_dict = {"DateFormat": "UTCGregorian", "Epoch": '26 Oct 2020 16:00:00.000',
     #             "SMA": 1000+rE, "ECC": 0.0, "INC": 60.00,
     #             "RAAN": 0.0, "AOP": 0.0, "TA": 0.00,
     #             "rcs": 3.3385}
     
     # # Steller Mid Shell Rating
+    # save_folder = 'mydata'
     # sat_dict = {"DateFormat": "UTCGregorian", "Epoch": '26 Oct 2020 16:00:00.000',
     #             "SMA": 925.+rE, "ECC": 0.0, "INC": 80.00,
     #             "RAAN": 0.0, "AOP": 0.0, "TA": 0.00,
     #             "rcs": 1.9888}
     
-    # # Steller Inner Shell Rating
-    # sat_dict = {"DateFormat": "UTCGregorian", "Epoch": '26 Oct 2020 16:00:00.000',
-    #             "SMA": 850.+rE, "ECC": 0.0, "INC": 60.00,
-    #             "RAAN": 0.0, "AOP": 0.0, "TA": 0.00,
-    #             "rcs": 1.9888}
-    
-    # Endurosat
+    # Steller Inner Shell Rating
+    save_folder = 'mydata'
     sat_dict = {"DateFormat": "UTCGregorian", "Epoch": '26 Oct 2020 16:00:00.000',
-                "SMA": 6893.7525, "ECC": 0.0011189, "INC": 97.50,
+                "SMA": 850.+rE, "ECC": 0.0, "INC": 60.00,
                 "RAAN": 0.0, "AOP": 0.0, "TA": 0.00,
-                "rcs": 210.5029}
+                "rcs": 1.9888}
+    
+    # # Endurosat
+    # save_folder = 'mydata'
+    # sat_dict = {"DateFormat": "UTCGregorian", "Epoch": '26 Oct 2020 16:00:00.000',
+    #             "SMA": 6893.7525, "ECC": 0.0011189, `"INC": 97.50,
+    #             "RAAN": 0.0, "AOP": 0.0, "TA": 0.00,
+    #             "rcs": 210.5029}
     
     
     # Run Analysis
-    results = run_analysis(sat_dict,start_date,stop_date,step)
+    results = run_analysis(sat_dict,start_date,stop_date,step,save_folder=save_folder)
     
     # Known errors:
     # SPICE(KERNELPOOLFULL)
@@ -102,31 +108,37 @@ def test_run_analysis_optical():
     start_date = '2020-10-26 16:00:00.000' # Start Date e.g. '2020-10-26 16:00:00.000'
     stop_date =  '2020-11-25 15:59:59.999' # Stop Date e.g.  '2020-11-25 15:59:59.999'
     step = 10. # Time step (sec)
+    
     # Satellite-Maya Example
+    # save_folder = 'mydata'
     # sat_dict = {"DateFormat": "UTCGregorian", "Epoch": '26 Oct 2020 16:00:00.000',
     #             "SMA": 6963.0, "ECC": 0.0188, "INC": 97.60,
     #             "RAAN": 308.90, "AOP": 81.20, "TA": 0.00,
     #             "rcs": 0.55}
     
     # # Steller Outer Shell Rating
+    # save_folder = 'mydata'
     # sat_dict = {"DateFormat": "UTCGregorian", "Epoch": '26 Oct 2020 16:00:00.000',
     #             "SMA": 1000+rE, "ECC": 0.0, "INC": 60.00,
     #             "RAAN": 0.0, "AOP": 0.0, "TA": 0.00,
     #             "rcs": 3.3385}
     
     # # Steller Mid Shell Rating
+    # save_folder = 'mydata'
     # sat_dict = {"DateFormat": "UTCGregorian", "Epoch": '26 Oct 2020 16:00:00.000',
     #             "SMA": 925.+rE, "ECC": 0.0, "INC": 80.00,
     #             "RAAN": 0.0, "AOP": 0.0, "TA": 0.00,
     #             "rcs": 1.9888}
     
     # # Steller Inner Shell Rating
+    # save_folder = 'mydata'
     # sat_dict = {"DateFormat": "UTCGregorian", "Epoch": '26 Oct 2020 16:00:00.000',
     #             "SMA": 850.+rE, "ECC": 0.0, "INC": 60.00,
     #             "RAAN": 0.0, "AOP": 0.0, "TA": 0.00,
     #             "rcs": 1.9888}
     
     # Endurosat
+    save_folder = 'mydata'
     sat_dict = {"DateFormat": "UTCGregorian", "Epoch": '26 Oct 2020 16:00:00.000',
                 "SMA": 6893.7525, "ECC": 0.0011189, "INC": 97.50,
                 "RAAN": 0.0, "AOP": 0.0, "TA": 0.00,
@@ -134,7 +146,7 @@ def test_run_analysis_optical():
     
     
     # Run Analysis
-    results = run_analysis_optical(sat_dict,start_date,stop_date,step)
+    results = run_analysis_optical(sat_dict,start_date,stop_date,step,save_folder=save_folder)
     
     # Known errors:
     # SPICE(KERNELPOOLFULL)

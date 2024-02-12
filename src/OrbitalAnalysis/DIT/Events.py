@@ -393,7 +393,7 @@ def find_station_lighting(start_et,stop_et,station='DSS-43',method='ref_el', ref
 
 #%% Access
 
-def find_access(start_et,stop_et,station='DSS-43',min_el=0.):
+def find_access(start_et,stop_et,station='DSS-43',min_el=0.,prefilter='crossings'):
     '''
     Find time intervals when a ground station has line-of-sight access to a
     satellite - when the satellite is above a minimum elevation angle in the
@@ -458,7 +458,7 @@ def find_access(start_et,stop_et,station='DSS-43',min_el=0.):
     ids = spice.spkobj(sat_ephem_file) # SpiceCell object
     numobj = len(ids)
     sat_NAIF = [ids[i] for i in range(numobj) ] # -10002001 NAIF of the satellite
-    print('Kernel loading time: {} s'.format(time.time() - t_start))
+    # print('Kernel loading time: {} s'.format(time.time() - t_start))
     
     # Load the coverage window of station
     t_start = time.time()
@@ -466,114 +466,187 @@ def find_access(start_et,stop_et,station='DSS-43',min_el=0.):
     # ids = spice.spkobj(sat_ephem_file)
     cov = spice.spkcov(sat_ephem_file,sat_NAIF[0]) # SpiceCell object
     
-    # # Create time window of interest
-    # # See: https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/windows.html
-    # MAXWIN = 5000 # Maximum number of intervals
-    # cnfine = spice.cell_double(2) # Initialize window of interest
-    # spice.wninsd(start_et, stop_et, cnfine ) # Insert time interval in window
-    # print('Coverage window creation time: {} s'.format(time.time() - t_start))
+    # Create time window of interest ------------------------------------------
+    if prefilter == 'groupings':
+        # Pre-filter times 
+        # Use course ephemeris data to get rough estimates of time intervals for each
+        # access time. Use these as initial intervals to constrain gfposc geometry
+        # search - rather than running search over entire scenario time.
+        # This should significantly speed up computation time.
+        
+        # Strategy:
+        # 1. Form a dataframe with epoch and elevation
+        # 2. Remove all negative elevations
+        # 3. Add a flag numbering the segments. Increment number when time step
+        #    is larger than dt.
+        # 4. Groupby flag and extract max and min. Use these as start and stop
+        #    times for intervals.
     
-    
-    # Pre-filter times --------------------------------------------------------
-    # Use course ephemeris data to get rough estimates of time intervals for each
-    # access time. Use these as initial intervals to constrain gfposc geometry
-    # search - rather than running search over entire scenario time.
-    # This should significantly speed up computation time.
-    
-
-    # Get satellite ephemeris    
-    t_start = time.time() # Start time
-    dt = 60 # Time step (s)
-    et = np.arange(start_et,stop_et,60.) # List of epochs
-    # Satellite ephemeris (targ, et, ref, abcorr, obs)
-    [satv, ltime] = spice.spkpos( str(sat_NAIF[0]), et, station+'_TOPO', 'lt+s', station)
-    # Convert to lat/long coords
-    rlonlat_tups = [ spice.reclat( satv[i,:] ) for i in range(len(satv))] # List of (r,lon,lat) tupples
-    r,lon,lat = np.array(list(zip(*rlonlat_tups)))
-    el = lat
-    print('Ephem load time: {} s'.format(time.time() - t_start))
-    
-    # Find peaks in elevation
-    # Filter peaks above 0 deg
-    # For each, find time
-    # See: http://constans.pbworks.com/w/file/fetch/120908295/Simple_Algorithms_for_Peak_Detection_in_Time-Serie.pdf
-    
-    # Find peaks and zero crossings
-    y = el
-    
-    # Find indices of peaks
-    peaks, _ = find_peaks(el) # Find peaks in signal
-    peaks_pos = peaks[el[peaks] > 0] # Peaks that are above 0 deg elevation
-    peaks_neg = peaks[el[peaks] <= 0] # Peaks that are below 0 deg elevation
-    t_peaks = et[peaks_pos] # Times of peaks
-    
-    # Compute widths of each peak at the x axis
-    # Returns widths, with heights, interpolated positions of left and right 
-    # widths, h_eval, left_ips, right_ips = peak_widths(y, peaks, rel_height=np.finfo(float).eps) # Widths of peaks at x-crossing
-    
-    # Find zero crossings (el==0)
-    # Distinguish between upwards crossing (from -ve to +ve)
-    # and downwards crossings (from +ve to -ve)
-    crossings_up =   np.where((y[1:] >  0) * (y[:-1] <= 0))[0]  # Points where move from -ve to +ve
-    crossings_down = np.where((y[1:] <= 0) * (y[:-1] >  0))[0] # Points where move from +ve to -ve
-    crossings_down += 1 # Move to the next timestep
-    t_cross_up = et[crossings_up] # Times of upward crossings
-    t_cross_down = et[crossings_down] # Times of downward crossing
-    
-    
-    
-    # Find closest crossing either side of peaks
-    # For each positive peak, find the nearest zero crossings either side.
-    # Use np.searchsorted to find indices of closest zero crossings to the left and right
-    # Closest updards crossing (left end of interval)
-    ind_left = np.searchsorted(t_cross_up, t_peaks) # Index points should be inserted into crossssing_up
-    ind_left -= 1 # Get the index of the point to the left of these
-    t_left = t_cross_up[ind_left] # Times of these crossings (left end of each bracket)
-    # Closest downward crossing (right end of interval)
-    ind_right = np.searchsorted(t_cross_down, t_peaks) # Index points should be inserted into crossing_down
-    t_right = t_cross_down[ind_right] # Times of these crossings (right end of each bracket)
-    # Replace epochs where ind < 0 with stat epoch
-    t_left[ind_left<0] = start_et
-    # TODO: Check for right
-    if max(ind_right)>len(t_cross_down):
-        # Right end point beyond end of timeframe
+        # Get satellite ephemeris    
+        t_start = time.time() # Start time
+        dt = 60 # Time step (s)
+        et = np.arange(start_et,stop_et,60.) # List of epochs
+        # Satellite ephemeris (targ, et, ref, abcorr, obs)
+        [satv, ltime] = spice.spkpos( str(sat_NAIF[0]), et, station+'_TOPO', 'lt+s', station)
+        # Convert to lat/long coords
+        rlonlat_tups = [ spice.reclat( satv[i,:] ) for i in range(len(satv))] # List of (r,lon,lat) tupples
+        r,lon,lat = np.array(list(zip(*rlonlat_tups)))
+        el = lat
+        print('Ephem load time: {} s'.format(time.time() - t_start))
+        
+        # Form a dataframe
+        df = pd.DataFrame(columns=['ET','Sun.El'])
+        df.ET = et
+        df['Sun.El'] = el
+        
+        
         pdb.set_trace()
     
+    elif prefilter == 'crossings':
+        
+        # Pre-filter times 
+        # Use course ephemeris data to get rough estimates of time intervals for each
+        # access time. Use these as initial intervals to constrain gfposc geometry
+        # search - rather than running search over entire scenario time.
+        # This should significantly speed up computation time.
+        
+        # Runtime ~ 2-3 s per groundstation
+        
+        # Strategy
+        # 1. Find peaks in Elevation
+        # 2. Find zero crossing of elevation, 
+        #    - upwards crossings (-ve to +ve)
+        #    - downwards crossings (+ve to -ve)
+        # 3. For each peak, find the nearest upwards and downwards crossings
+        # 4. Use these 
     
-    # Check intervals
-    if min(t_right > t_left) == False:
-        print('Warning: Invervals are not ascending.')
-        pdb.set_trace()
-    
-    # We now have a set of peaks in elevation at epochs t_peaks.
-    # For each peak, we have the epochs of the zero crossings either size (t_left, t_right)
-    # These form a set of intervals that should contain each access period
-    # During each interval (t_left, t_right), the elevation will range from -ve
-    # to a +ve maximum elevation, back to -ve.
-    # We can use these intervals as inital guesses for the access intervals.
-    
-    # Create interval cnfine from these. 
-    # Create time window of interest
-    # See: https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/windows.html
-    MAXWIN = 5000 # Maximum number of intervals
-    cnfine = spice.cell_double(2*len(t_peaks)) # Initialize window of interest
-    [spice.wninsd(t_left[i], t_right[i], cnfine ) for i in range(len(t_peaks))] # Insert time intervals in window
-    print('Coverage window creation time: {} s'.format(time.time() - t_start))
+        # Get satellite ephemeris    
+        t_start = time.time() # Start time
+        dt = 60 # Time step (s)
+        et = np.arange(start_et,stop_et,60.) # List of epochs
+        # Satellite ephemeris (targ, et, ref, abcorr, obs)
+        [satv, ltime] = spice.spkpos( str(sat_NAIF[0]), et, station+'_TOPO', 'lt+s', station)
+        # Convert to lat/long coords
+        rlonlat_tups = [ spice.reclat( satv[i,:] ) for i in range(len(satv))] # List of (r,lon,lat) tupples
+        r,lon,lat = np.array(list(zip(*rlonlat_tups)))
+        el = lat
+        # print('Ephem load time: {} s'.format(time.time() - t_start))
+        
+        # Find peaks in elevation
+        # Filter peaks above 0 deg
+        # For each, find time
+        # See: http://constans.pbworks.com/w/file/fetch/120908295/Simple_Algorithms_for_Peak_Detection_in_Time-Serie.pdf
+        
+        # Find peaks and zero crossings
+        y = el
+        
+        # Find indices of peaks
+        peaks, _ = find_peaks(el) # Find peaks in signal
+        peaks_pos = peaks[el[peaks] > 0] # Peaks that are above 0 deg elevation
+        peaks_neg = peaks[el[peaks] <= 0] # Peaks that are below 0 deg elevation
+        t_peaks = et[peaks_pos] # Times of peaks
+        
+        # Compute widths of each peak at the x axis
+        # Returns widths, with heights, interpolated positions of left and right 
+        # widths, h_eval, left_ips, right_ips = peak_widths(y, peaks, rel_height=np.finfo(float).eps) # Widths of peaks at x-crossing
+        
+        # Find zero crossings (el==0)
+        # Distinguish between upwards crossing (from -ve to +ve)
+        # and downwards crossings (from +ve to -ve)
+        crossings_up =   np.where((y[1:] >  0) * (y[:-1] <= 0))[0]  # Points where move from -ve to +ve
+        crossings_down = np.where((y[1:] <= 0) * (y[:-1] >  0))[0] # Points where move from +ve to -ve
+        crossings_down += 1 # Move to the next timestep
+        t_cross_up = et[crossings_up] # Times of upward crossings
+        t_cross_down = et[crossings_down] # Times of downward crossing
+        
+        # # Add End times to handle casses when the there is a peak close to the ends
+        # # Add et[0] at start of t_cross_up 
+        # # Add et[-1] at end of t_cross_down
+        # t_cross_up = np.insert(t_cross_up, 0, et[0], axis=0)
+        # t_cross_down = np.insert(t_cross_down, -1, et[-1], axis=0)
+        
+        # Original
+        # Find closest crossing either side of peaks
+        # For each positive peak, find the nearest zero crossings either side.
+        # Use np.searchsorted to find indices of closest zero crossings to the left and right
+        
+        # Closest upwards crossing (left end of interval)
+        ind_left = np.searchsorted(t_cross_up, t_peaks) # Index points should be inserted into crossssing_up
+        ind_left -= 1 # Get the index of the point to the left of these
+        
+        # Make sure the indices are within bounds
+        # ind_left = np.clip(ind_left, 0, len(t_cross_up) - 1)
+        # Extract times
+        t_left = t_cross_up[ind_left] # Times of these crossings (left end of each bracket)
+        # # Replace epochs where ind < 0 with stat epoch
+        t_left[ind_left<0] = start_et
+        # See test case for Steller Inner Shell Rating, station # 24
+        
+        # Check for peaks close to start of timeframe
+        
+        # Closest downward crossing (right end of interval)
+        ind_right = np.searchsorted(t_cross_down, t_peaks) # Index points should be inserted into crossing_down
+        # ind_right = np.clip(ind_right, 0, len(t_cross_down) - 1)
+        
+        # Replace epochs where ind < 0 with stat epoch
+        ind_right[ind_right >= len(t_cross_down)] = -1 # Set larger indices to -1 to easily find them
+        
+        
+        # Extract times
+        t_right = t_cross_down[ind_right] # Times of these crossings (right end of each bracket)
+        t_right[ind_right<0] = stop_et # Fix end epochs
+        # See test case for Steller Inner Shell Rating, station # 29
+     
+        
+        # Check intervals
+        if min(t_right > t_left) == False:
+            print('Warning: Invervals are not ascending.')
+            pdb.set_trace()
 
-    # FIXME: Plot to confirm intervals are correct    
-    # fig, ax = plt.subplots(1, 1)
-    # ax.plot(et,np.rad2deg(el),'-b') # Timeseries
-    # ax.plot([et[0],et[-1]],[0,0],'-k') # el=0 line
-    # ax.plot(et[peaks],np.rad2deg(y[peaks]),'or') # Peaks
-    # ax.plot(et[crossings_up],np.rad2deg(y[crossings_up]),'ob')   # Up crossings
-    # ax.plot(et[crossings_down],np.rad2deg(y[crossings_down]),'og') # Down crossings
     
-    # for i in range(2):
-    #     ax.plot([et[left_ips.astype(int)[i]], et[right_ips.astype(int)[i]] ],[0,0],'-r' )
-    # # plt.hlines(h_eval, et[left_ips.astype(int)], et[right_ips.astype(int)], color="r",linewidth=2)
-    # fig.show()
+        # We now have a set of peaks in elevation at epochs t_peaks.
+        # For each peak, we have the epochs of the zero crossings either size (t_left, t_right)
+        # These form a set of intervals that should contain each access period
+        # During each interval (t_left, t_right), the elevation will range from -ve
+        # to a +ve maximum elevation, back to -ve.
+        # We can use these intervals as inital guesses for the access intervals.
+        
+        # Create interval cnfine from these. 
+        # Create time window of interest
+        # See: https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/windows.html
+        MAXWIN = 5000 # Maximum number of intervals
+        cnfine = spice.cell_double(2*len(t_peaks)) # Initialize window of interest
+        [spice.wninsd(t_left[i], t_right[i], cnfine ) for i in range(len(t_peaks))] # Insert time intervals in window
+        # print('Total coverage window creation time: {} s'.format(time.time() - t_start))
+        
+        # FIXME: Plot to confirm intervals are correct 
+        debug_plot = False
+        if debug_plot:
+            fig, ax = plt.subplots(1, 1)
+            ax.plot(et,np.rad2deg(el),'-b') # Timeseries
+            ax.plot([et[0],et[-1]],[0,0],'-k') # el=0 line
+            ax.plot(et[peaks],np.rad2deg(y[peaks]),'or') # Peaks
+            ax.plot(et[crossings_up],np.rad2deg(y[crossings_up]),'ob')   # Up crossings
+            ax.plot(et[crossings_down],np.rad2deg(y[crossings_down]),'og') # Down crossings
+            # Highlihgt intervals
+            for i in range(len(t_left)):
+                plt.axvspan(t_left[i], t_right[i], color="r", alpha=0.5)
+            ax.set_xlabel('Epoch (ET)')
+            ax.set_ylabel('Elevation (rad)')
+            fig.show()
+            
+            pdb.set_trace()
+        
+        
+    else:
+        # Use entire time window (search time ~16s per groundstation)
+        # See: https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/windows.html
+        MAXWIN = 5000 # Maximum number of intervals
+        cnfine = spice.cell_double(2) # Initialize window of interest
+        spice.wninsd(start_et, stop_et, cnfine ) # Insert time interval in window
+        print('Coverage window creation time: {} s'.format(time.time() - t_start))
     
-    # -------------------------------------------------------------------------
+    
     
     # Settings for geometry search  
     # Find when the satellite elevation is > 0 deg

@@ -38,6 +38,11 @@ Otherwise, run from command line
 >> from tests import *
 >> test_run_analysis()
 
+5. Windows check pck version
+If you are running windows, you need to update the pck0010.tcp file.
+Locate the file in the repo data directory ..\orbital-environment-analysis\data
+Copy the file to the Kernels directory C:\Users\<username>\satellite_data\Data\Kernels and replace any existing file there.
+
 
 
 
