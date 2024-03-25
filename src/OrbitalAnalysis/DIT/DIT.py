@@ -59,7 +59,7 @@ from OrbitalAnalysis.DIT.VisualMagnitude import *
 
 #%% Main Workflow
 
-def run_analysis(sat_dict,start_date,stop_date,step,save_folder='DITdata'):
+def run_analysis(sat_dict,start_date,stop_date,step,save_folder='DITdata',prefilter='crossings'):
     ''' Main workflow for DIT score calculation. '''
     
     # 0. Check all generic kernels exist
@@ -94,8 +94,8 @@ def run_analysis(sat_dict,start_date,stop_date,step,save_folder='DITdata'):
     # 3. Compute SSR and SSRD Station Lighting and access
     # SSR: use min_el = 30 deg (120 deg cone angle from zenith)
     # SSRD: use min_el = 5 deg (since targeted at satellite)
-    dflos_ssr, dfvis_ssr, dfcomblos_ssr, dfcombvis_ssr = compute_station_access('SSR',start_et,stop_et,satlight1,30.,save_folder=save_folder,save=True)
-    dflos_ssrd, dfvis_ssrd, dfcomblos_ssrd, dfcombvis_ssrd = compute_station_access('SSRD',start_et,stop_et,satlight1,5.,save_folder=save_folder,save=True)
+    dflos_ssr, dfvis_ssr, dfcomblos_ssr, dfcombvis_ssr = compute_station_access('SSR',start_et,stop_et,satlight1,30.,prefilter=prefilter,save_folder=save_folder,save=True)
+    dflos_ssrd, dfvis_ssrd, dfcomblos_ssrd, dfcombvis_ssrd = compute_station_access('SSRD',start_et,stop_et,satlight1,5.,prefilter=prefilter,save_folder=save_folder,save=True)
     
     # 4. Optical Trackability
     # Compute from combined list of visible access dfvis_ssr
@@ -253,7 +253,7 @@ Overall Radar Detectability Score: {radar_detect_score}
     
     return results
 
-def run_analysis_optical(sat_dict,start_date,stop_date,step,save_folder='DITdata'):
+def run_analysis_optical(sat_dict,start_date,stop_date,step,prefilter='crossings',save_folder='DITdata'):
     ''' Main DIT workflow with optical detection only. '''
     
     # 0. Check all generic kernels exist
@@ -289,7 +289,7 @@ def run_analysis_optical(sat_dict,start_date,stop_date,step,save_folder='DITdata
     # SSR: use min_el = 30 deg (120 deg cone angle from zenith)
     # SSRD: use min_el = 5 deg (since targeted at satellite)
     # dflos_ssr, dfvis_ssr, dfcomblos_ssr, dfcombvis_ssr = compute_station_access('SSR',start_et,stop_et,satlight1,30.,save_folder=save_folder,save=True)
-    dflos_ssrd, dfvis_ssrd, dfcomblos_ssrd, dfcombvis_ssrd = compute_station_access('SSRD',start_et,stop_et,satlight1,5.,save_folder=save_folder,save=True)
+    dflos_ssrd, dfvis_ssrd, dfcomblos_ssrd, dfcombvis_ssrd = compute_station_access('SSRD',start_et,stop_et,satlight1,5.,prefilter=prefilter,save_folder=save_folder,save=True)
     
     # # 4. Optical Trackability
     # # Compute from combined list of visible access dfvis_ssr
@@ -469,7 +469,7 @@ def create_ephem_files(sat,start_date,stop_date,step,method):
     
     return
 
-def compute_station_access(network,start_et,stop_et,satlight, min_el, save_folder='DITdata', save=False):
+def compute_station_access(network,start_et,stop_et,satlight, min_el, prefilter='crossings', save_folder='DITdata', save=False):
     
     # Loop through all stations and compute line-of-sight and visible access 
     
@@ -504,6 +504,7 @@ def compute_station_access(network,start_et,stop_et,satlight, min_el, save_folde
     
     print('Computing {} Station Lighting and Access intervals'.format(network), flush=True)
     print('Stations: {}'.format(stations),flush=True)
+    print('Prefilter: {}'.format(prefilter),flush=True)
     dflos = pd.DataFrame(columns=['Station','Access','Start','Stop','Duration'])
     dfvis = pd.DataFrame(columns=['Station','Access','Start','Stop','Duration'])
     los_access_list = [] # List of LOS access interval of stations
@@ -518,7 +519,7 @@ def compute_station_access(network,start_et,stop_et,satlight, min_el, save_folde
         # Compute line-of-sight access intervals (~22 s)
         # Use min_el = 30 deg (120 deg cone angle from zenith)
         t_start = time.time()
-        los_access = find_access(start_et,stop_et,station=gs,min_el=min_el)
+        los_access = find_access(start_et,stop_et,station=gs,min_el=min_el,prefilter=prefilter) # Change prefilter=None if error in pre-filtering algorithm
         los_access_list.append(los_access) # Append to list of station access intervals
         # Convert to dataframe
         dflos_i = window_to_dataframe(los_access,timefmt='ET') # Load as dataframe
