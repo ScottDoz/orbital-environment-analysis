@@ -84,7 +84,8 @@ def test_run_analysis():
     
     
     # Run Analysis
-    results = run_analysis(sat_dict,start_date,stop_date,step,save_folder=save_folder)
+    results = run_analysis(sat_dict,start_date,stop_date,step,save_folder=save_folder,prefilter='crossings')
+    # results = run_analysis(sat_dict,start_date,stop_date,step,save_folder=save_folder,prefilter=None)
     
     # Known errors:
     # SPICE(KERNELPOOLFULL)
@@ -506,3 +507,7 @@ def validate_optical_access(case):
 # Find a clustering metric that minimizes the confusion between objects.
 # i.e. groups of debris are clustered tight together, and well separated from
 # other objects.
+
+
+if __name__ == "__main__":
+    test_run_analysis()

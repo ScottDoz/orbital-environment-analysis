@@ -700,7 +700,7 @@ def compute_tracking_stats(df,scenario_duration):
     if avg_interval > 43200:
         int_tier = 'Difficult to Track'
         int_score = 0
-    elif 43200 <= avg_interval < 14400:
+    elif 14400 <= avg_interval < 43200: # FIXME: Values were flipped
         int_tier = 'Trackable'
         int_score = 0.25
     elif 14400 >= avg_interval:
