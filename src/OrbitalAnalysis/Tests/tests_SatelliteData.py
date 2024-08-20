@@ -11,6 +11,7 @@ Tests for satellite data and visualization
 from OrbitalAnalysis.SatelliteData import *
 from OrbitalAnalysis.Clustering import *
 from OrbitalAnalysis.Distances import *
+from OrbitalAnalysis.Density import *
 from OrbitalAnalysis.Visualization import *
 # from DIT import *
 # from Ephem import *
@@ -129,8 +130,8 @@ def test_h_space_visualization():
     '''
     
     # Load the data
-    # df = load_satellites(group='all',compute_params=True)
-    df = load_vishnu_experiment_data(1)
+    df = load_satellites(group='all',compute_params=True)
+    # df = load_vishnu_experiment_data(1)
     
     # Generate clusters in (h,hz) coordiantes
     label = 'test_clusters' # Field name holding clusters
@@ -233,3 +234,15 @@ def test_distances():
     
     
     return df
+
+#%% Density
+
+def test_catalog_density():
+    
+    # Load the catalog at current epoch
+    cat = Catalog()
+
+    # Plot the density
+    cat.plot_density()
+    
+    return

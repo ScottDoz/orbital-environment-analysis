@@ -11,3 +11,6 @@ TLE-tools
 #tletools
 tqdm
 trimesh
+
+# Required for data analysis
+scikit-learn

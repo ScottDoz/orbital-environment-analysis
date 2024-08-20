@@ -21,12 +21,12 @@ from pathlib import Path
 import os
 import configparser
 import spiceypy as spice
-#from sklearn.decomposition import PCA
+from sklearn.decomposition import PCA
 
 import pdb
 
 # Relative imports
-from OrbitalAnalysis.utils import get_data_home
+from OrbitalAnalysis.utils import get_data_home, get_root_dir
 
 
 #%% ASTRIAGraph access
@@ -194,10 +194,11 @@ def download_all_spacetrack():
     
     # Get data directory
     DATA_DIR = get_data_home()
+    ROOT_DIR = get_root_dir()
     
     # Read spacetrack email and password from config.ini
     config = configparser.ConfigParser()
-    config.read('config.ini')
+    config.read(ROOT_DIR/'config.ini')
     email = config['Spacetrack']['email']
     pw = config['Spacetrack']['pw']
     # email = 's.dorrington@unswalumni.com'
@@ -292,14 +293,16 @@ def query_norad(IDs,compute_params=True):
     if type(IDs)==int:
         IDs = [IDs]
     
+    # Get data directory
+    DATA_DIR = get_data_home()
+    ROOT_DIR = get_root_dir()
+    
     # Read spacetrack email and password from config.ini
     config = configparser.ConfigParser()
-    config.read('config.ini')
+    config.read(str(ROOT_DIR/'config.ini'))
     email = config['Spacetrack']['email']
     pw = config['Spacetrack']['pw']
     
-    # Get data directory
-    DATA_DIR = get_data_home()
     
     # Set up connection to client 
     from spacetrack import SpaceTrackClient

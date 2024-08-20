@@ -31,13 +31,15 @@ from OrbitalAnalysis.Visualization import *
 class Catalog():
     
     
-    def __init__(self,dataset='2019',period=1):
+    def __init__(self,dataset='spacetrack',period=1):
         
         # Load dataset
         if dataset == '2019':
             df = load_2019_experiment_data(period)
         elif dataset.lower() == 'vishnu':
             df = load_vishnu_experiment_data(period)
+        else:
+            df = load_satellites(group='all',compute_params=True)
         
         # Compute density
         df['p_hxhyhz'] = compute_density(df)
