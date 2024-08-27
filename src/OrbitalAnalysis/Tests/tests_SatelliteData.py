@@ -12,6 +12,7 @@ from OrbitalAnalysis.SatelliteData import *
 from OrbitalAnalysis.Clustering import *
 from OrbitalAnalysis.Distances import *
 from OrbitalAnalysis.Density import *
+from OrbitalAnalysis.Catalog import *
 from OrbitalAnalysis.Visualization import *
 # from DIT import *
 # from Ephem import *
@@ -240,7 +241,7 @@ def test_distances():
 def test_catalog_density():
     
     # Load the catalog at current epoch
-    cat = Catalog()
+    cat = Catalog.from_spacetrack()
 
     # Plot the density
     cat.plot_density()

@@ -26,60 +26,6 @@ from OrbitalAnalysis.SatelliteData import *
 from OrbitalAnalysis.utils import get_data_home
 from OrbitalAnalysis.Visualization import *
 
-#%% Define Catalog class
-
-class Catalog():
-    
-    
-    def __init__(self,dataset='spacetrack',period=1):
-        
-        # Load dataset
-        if dataset == '2019':
-            df = load_2019_experiment_data(period)
-        elif dataset.lower() == 'vishnu':
-            df = load_vishnu_experiment_data(period)
-        else:
-            df = load_satellites(group='all',compute_params=True)
-        
-        # Compute density
-        df['p_hxhyhz'] = compute_density(df)
-
-        # Store attributes
-        self.df0 = df # Dataframe Reference dataframe
-        self.norad_list = set(df.NoradId) # List of objects
-        self.num_objects = len(self.norad_list)
-    
-    
-    # Remove satellites -------------------------------------------------------
-    
-    def remove_satellites(sats):
-        
-        # Remove objects from Base
-        df = self.df0.copy() # Copy base catalog
-        
-        
-        return
-    
-    
-    
-    # Plotting methods
-    def plot_density(self):
-        
-        # Initialize figure
-        fig = plot_3d_scatter_numeric(self.df0,'hx','hy','hz',color='p_hxhyhz',
-                                    logColor=False,colorscale='Blackbody_r',
-                                    xrange=[-120000,120000],
-                                    yrange=[-120000,120000],
-                                    zrange=[-50000,150000],
-                                    aspectmode='cube',
-                                    render=False,
-                                    )
-        # fig.show()
-        plotly.offline.plot(fig)
-        
-        return
-
-
 
 #%% Compute density
 
@@ -111,11 +57,13 @@ def compute_density(df):
     features = ['hx','hy','hz']
     bandwidth = 0.008858667904100823
     
+    # Get indices of non-zero elements
+    ind  = ~pd.isna(df.hx)
     
     # Apply KDE and evaluate at satellite points.
     # Uncomment/add different parameter sets
     
-    X = df[features].to_numpy()
+    X = df[ind][features].to_numpy()
     kde1 = KernelDensity(bandwidth=bandwidth, kernel='gaussian')
     kde1 = kde1.fit(X)
     # Evaluating at satellite points
@@ -124,7 +72,12 @@ def compute_density(df):
     # Add to dataframe
     # df1['p_hxhyhz'] = log_satdens  
     
-    return log_satdens
+    # Return results
+    result = np.zeros(len(df))*np.nan
+    result[ind] = log_satdens
+    
+    
+    return result
 
 
 # See: evaluate_satellite_densities(save_output=True) in Ex_DensityAnalysis.py

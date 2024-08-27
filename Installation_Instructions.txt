@@ -11,9 +11,11 @@ Instructions for installing
 >> git clone https://github.com/ScottDoz/orbital-environment-analysis.git
 
 3. Install requirements
-cd to direectory of requirements.txt
+cd to directory of requirements.txt
 >> conda activate ssr
 >> pip install -r requirements.txt
+Install the conda requiremnets
+>> conda install -c conda-forge --file "conda_requirements.txt"
 
 3.1 (Optional) Install Spyder
 >> pip install spyder

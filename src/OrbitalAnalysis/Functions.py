@@ -40,7 +40,7 @@ import plotly.express as px
 
 # from skimage import measure
 # import cv2
-from skimage.feature import peak_local_max
+# from skimage.feature import peak_local_max
 import scipy.signal
 
 # Package imports

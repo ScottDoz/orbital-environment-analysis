@@ -235,6 +235,44 @@ def download_all_spacetrack():
     
     return
 
+def get_spacetrack_tles_as_string():
+    '''
+    Get full TLE catalogs from SpaceTrack to a string.
+    
+    '''
+    
+    # Get data directory
+    DATA_DIR = get_data_home()
+    ROOT_DIR = get_root_dir()
+    
+    # Read spacetrack email and password from config.ini
+    config = configparser.ConfigParser()
+    config.read(ROOT_DIR/'config.ini')
+    email = config['Spacetrack']['email']
+    pw = config['Spacetrack']['pw']
+    # email = 's.dorrington@unswalumni.com'
+    # pw = 'bgzWd4j9L8xr3Db'
+    
+    # Set up connection to client 
+    from spacetrack import SpaceTrackClient
+    st = SpaceTrackClient(email, pw)
+    
+    import spacetrack.operators as op
+    
+    # https://www.space-track.org/basicspacedata/query/class/gp/EPOCH/%3Enow-30/orderby/NORAD_CAT_ID,EPOCH/format/3le
+    
+    # Stream download line by line
+    data = st.tle_latest(iter_lines=True, ordinal=1, epoch='>now-30',
+                     # mean_motion=op.inclusive_range(0.0, 20.01), # (0.99,1.01)
+                     # eccentricity=op.less_than(0.01), 
+                     format='3le')
+    
+    # Parse text generator into string
+    result_string = ""
+    for line in data: result_string += line + "\n"
+    
+    return result_string
+
 #%% Query TLEs by NORAD
 
 def get_tle(ID,epoch='latest',tle_type='3le'):

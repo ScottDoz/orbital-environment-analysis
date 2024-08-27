@@ -392,6 +392,7 @@ def plot_h_space_cat(df,cat='vishnu_cluster'):
 def plot_3d_scatter_numeric(df,xlabel,ylabel,zlabel,color=None,
                             logColor=False,colorscale='Blackbody',
                             color_label=None,
+                            markersize=1.0,
                             xrange=[None,None],yrange=[None,None],zrange=[None,None],
                             aspectmode='auto',
                             filename='temp-plot.html',
@@ -459,7 +460,7 @@ def plot_3d_scatter_numeric(df,xlabel,ylabel,zlabel,color=None,
                                 "",
                             mode='markers',
                             marker=dict(
-                                size=0.5,
+                                size=markersize,
                                 opacity=0.8,
                             ),
                         )])
@@ -489,7 +490,7 @@ def plot_3d_scatter_numeric(df,xlabel,ylabel,zlabel,color=None,
                                     "",
                                 mode='markers',
                                 marker=dict(
-                                    size=1,
+                                    size=markersize,
                                     color=c,             # set color to an array/list of desired values
                                     colorscale=colorscale,   # choose a colorscale 'Viridis'
                                     opacity=0.8,
