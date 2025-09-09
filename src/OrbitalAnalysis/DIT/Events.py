@@ -36,7 +36,7 @@ import time
 # Use https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/cspice/gfoclt_c.html
 # To find eclipse times
 
-def find_sat_lighting(start_et,stop_et):
+def find_sat_lighting(start_et,stop_et,sat_ephem=None):
     '''
     Find lighting conditions of the satellite. Time intervals when satellite
     is in sunlight, or in eclipse (when the Sun is occulted by the Earth as 
@@ -73,7 +73,10 @@ def find_sat_lighting(start_et,stop_et):
     # Kernel file directory
     kernel_dir = get_data_home()  / 'Kernels'
     # sat_ephem_file = str(get_data_home()/'GMATscripts'/'Access'/'EphemerisFile1.bsp')
-    sat_ephem_file = str(get_data_home()/'Kernels'/'sat.bsp')
+    if sat_ephem is None:
+        sat_ephem_file = str(get_data_home()/'Kernels'/'sat.bsp')
+    else:
+        sat_ephem_file = sat_ephem
     
     
     # Load Kernels
