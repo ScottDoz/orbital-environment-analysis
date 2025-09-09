@@ -396,7 +396,7 @@ def find_station_lighting(start_et,stop_et,station='DSS-43',method='ref_el', ref
 
 #%% Access
 
-def find_access(start_et,stop_et,station='DSS-43',min_el=0.,prefilter='crossings'):
+def find_access(start_et,stop_et,station='DSS-43',min_el=0.,prefilter='crossings',sat_ephem=None):
     '''
     Find time intervals when a ground station has line-of-sight access to a
     satellite - when the satellite is above a minimum elevation angle in the
@@ -434,7 +434,11 @@ def find_access(start_et,stop_et,station='DSS-43',min_el=0.,prefilter='crossings
     kernel_dir = get_data_home()  / 'Kernels'
     station_ephem_file = str(kernel_dir/'earthstns_itrf93_201023.bsp')
     # sat_ephem_file = str(get_data_home()/'GMATscripts'/'Access'/'EphemerisFile1.bsp')
-    sat_ephem_file = str(get_data_home()/'Kernels'/'sat.bsp')
+    # sat_ephem_file = str(get_data_home()/'GMATscripts'/'Access'/'EphemerisFile1.bsp')
+    if sat_ephem is None:
+        sat_ephem_file = str(get_data_home()/'Kernels'/'sat.bsp')
+    else:
+        sat_ephem_file = sat_ephem
     
     # Load Kernels
     
