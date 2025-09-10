@@ -17,6 +17,7 @@ from OrbitalAnalysis.DIT.Events import *
 from OrbitalAnalysis.Visualization import plot_visibility
 from OrbitalAnalysis.utils import get_data_home, get_root_dir
 from OrbitalAnalysis.DIT.GroundstationData import get_groundstations
+from OrbitalAnalysis.DIT.Communications import *
 
 import numpy as np
 import pandas as pd
@@ -25,6 +26,19 @@ from tqdm import tqdm
 
 import pdb
 
+#%% Create Groundstation ephemeris files
+
+def create_groundstation_ephem_files():
+    
+    #TODO: Create details of network in GroundstationData.py
+    
+    # Load locations of groundstations
+    df = get_groundstations(network='LeoLabs')
+    # Select name of output files NAME_stations.bsp, NAME_stations.tf
+    NAME= 'MYNETWORK'
+    create_station_ephem(df, network_name=NAME)
+    
+    return
 
 #%% Get Topocentric Ephemeris over entire time interval
 
@@ -102,6 +116,57 @@ def get_client_servicer_ephem_topo():
     # Plot results    
     plot_visibility(dfs, title="Servicer Optical Detectability Station {}".format(station), filename='ServicerVisibility.html')
     
+    
+    # Compute link budget to get SNR
+    
+    # Inputs
+    Pt = 10*np.log10(10E6) # Transmit power (dBW) 70 dBW (computed from 10 MW) ref [1]
+    Gt = 36.39 # Transmitter gain (dBi) [2] From MATLAB script
+    Gr = 0 # Receiver gain (dBi) ref [3] LNAGain = 1 (== 0 dB)
+    f = 0.45 # Carrier frequency (GHz) (450 MHz) ref [1]
+    # rcs (m^2) (input variable)
+    
+    Ts = 290 # System temperature ref[3]  ConstantNoiseTemp = 290 K
+    tp = 1E-07 # Pulse width (s) ref [3]  PulseWidth = 1e-07 sec
+    
+    L = 0 # Additional losses (dBW) TODO 
+    # References
+    # [1] Riley's Thesis
+    # [2] MATLAB script Radar_array.m uses Phased Array toolbox
+    # [3] STK Radar1.rd file
+    
+    
+    # Client 
+    # Compute received power, noise, single-pulse SNR at time steps
+    rcs = 1 # RCS of client satellite (m^2)
+    R = dfc['Sat.R'].to_numpy() # Groundstation to Sat Range (km) (from geometry)
+    Pr, Np, SNR1 = compute_link_budget(Pt,Gt,Gt,f,R,rcs,Ts,tp,L)
+    # Use SNR1 to compute Probability of Detection
+    pfa = 0.0001 # Probability of false alarm ref [3]
+    PD = compute_probability_of_detection(SNR1,pfa=pfa)
+    # Find max probability
+    max_PD = np.nanmax(PD)
+    # Add to dataframe
+    dfc.insert(len(dfc.columns),'Pr',list(Pr))
+    dfc.insert(len(dfc.columns),'Np',list(Np*np.ones(len(dfc))))
+    dfc.insert(len(dfc.columns),'SNR1',list(SNR1))
+    dfc.insert(len(dfc.columns),'PD',list(PD))
+    
+    # Client 
+    # Compute received power, noise, single-pulse SNR at time steps
+    rcs = 1 # RCS of servicer satellite (m^2)
+    R = dfs['Sat.R'].to_numpy() # Groundstation to Sat Range (km) (from geometry)
+    Pr, Np, SNR1 = compute_link_budget(Pt,Gt,Gt,f,R,rcs,Ts,tp,L)
+    # Use SNR1 to compute Probability of Detection
+    pfa = 0.0001 # Probability of false alarm ref [3]
+    PD = compute_probability_of_detection(SNR1,pfa=pfa)
+    # Find max probability
+    max_PD = np.nanmax(PD)
+    # Add to dataframe
+    dfs.insert(len(dfs.columns),'Pr',list(Pr))
+    dfs.insert(len(dfs.columns),'Np',list(Np*np.ones(len(dfs))))
+    dfs.insert(len(dfs.columns),'SNR1',list(SNR1))
+    dfs.insert(len(dfs.columns),'PD',list(PD))
     
     return dfc, dfs
 
