@@ -32,10 +32,10 @@ from matplotlib import animation, rc
 rc('animation', html='html5')
 
 # Module imports
-from SatelliteData import get_spacetrack_tles_as_string, compute_orbital_params
+from OrbitalAnalysis.SatelliteData import get_spacetrack_tles_as_string, compute_orbital_params
 from OrbitalAnalysis.Visualization import *
-from Functions import coe_from_sv, TA_to_M
-from Density import compute_density
+from OrbitalAnalysis.Functions import coe_from_sv, TA_to_M
+from OrbitalAnalysis.Density import compute_density
 
 import pdb
 

@@ -15,13 +15,13 @@ from tqdm import tqdm
 
 import pdb
 
-from SatelliteData import *
-from DistanceAnalysis import *
-from Visualization import *
-from Clustering import *
+from OrbitalAnalysis.SatelliteData import *
+from OrbitalAnalysis.Distances import *
+from OrbitalAnalysis.Visualization import *
+from OrbitalAnalysis.Clustering import *
 
 # from sr_tools.Astrodynamics.OrbitToOrbit import *
-from OrbitToOrbit import *
+from OrbitalAnalysis.OrbitToOrbit import *
 
 # Load data
 df = load_satellites(group='all',compute_params=True,compute_pca=True)
@@ -35,7 +35,8 @@ df = load_satellites(group='all',compute_params=True,compute_pca=True)
 # N-to-N - All pairs of N objects surrounding a single point.
 # load - Load pre-computed values
 
-mode = '1-to-N'
+# mode = '1-to-N'
+mode = 'N-to-N'
 # mode = 'load'
 
 #%% Density analysis and Sampling
@@ -214,6 +215,8 @@ elif mode == 'N-to-N':
     
     # Repeat dataframe N times
     dfs = pd.concat([dfnear]*N)
+    
+    pdb.set_trace()
     
 elif mode == 'load':
     # Load pre-calculated data

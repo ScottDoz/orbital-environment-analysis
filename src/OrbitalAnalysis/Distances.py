@@ -887,11 +887,42 @@ def compute_distances(df,target,searchfield='NoradId'):
     # x2 = df[['hr','htheta','hphi']].to_numpy()
     # df['dHsph_mean'] = dist_h_sph_mean(x1,x2)
     
-    
-    
-    
     return df
 
+def compute_pairwise_euclidean_distance(df):
+    
+    
+    # Check if asteroid dataset
+    astflag = False
+    if 'pdes' in df.columns:
+        astflag = True
+    
+    
+    # H-space Euclidean = f(hx1,hy1,hz1)
+    # x1 = np.tile(df[['hx','hy','hz']][df[searchfield]==target].iloc[0].to_numpy(), (N,1))
+    # x2 = df[['hx','hy','hz']].to_numpy()
+    # df['dH'] = dist_dH(x1,x2)
+    
+    # Extract position vectors
+    pos = df[['hx','hy','hz']].to_numpy()
+    D = pos.shape[1] # Number of dimensions
+    N = len(df) # Get number of objects
+    
+    from scipy.spatial.distance import pdist, squareform
+    
+    # Compute the squared norms of the position vectors
+    squared_norms = np.sum(pos**2, axis=1)
 
+    # Compute the pairwise squared distances using broadcasting
+    # d_ij^2 = ||pos_i||^2 + ||pos_j||^2 - 2 * pos_i.dot(pos_j)
+    pairwise_squared_distances = squared_norms[:, np.newaxis] + squared_norms[np.newaxis, :] - 2 * np.dot(pos, pos.T)
+
+    # Take the square root to get the Euclidean distances
+    distance_matrix = np.sqrt(pairwise_squared_distances)
+    
+    # Set the diagonal elements to zero
+    np.fill_diagonal(distance_matrix, 0)
+    
+    return distance_matrix
 
 

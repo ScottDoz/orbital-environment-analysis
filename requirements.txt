@@ -2,6 +2,7 @@ astropy
 sgp4
 matplotlib
 natsort
+networkx
 numpy
 pandas==1.5.3
 #scikit-learn
@@ -14,3 +15,4 @@ trimesh
 
 # Required for data analysis
 scikit-learn
+scikit-tda
