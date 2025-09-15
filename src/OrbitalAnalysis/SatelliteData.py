@@ -279,8 +279,9 @@ def get_tle(ID,epoch='latest',tle_type='3le'):
     ''' Query TLEs for a single NORAD ID return a list of the lines '''
     
     # Read spacetrack email and password from config.ini
+    ROOT_DIR = get_root_dir()
     config = configparser.ConfigParser()
-    config.read('config.ini')
+    config.read(str(ROOT_DIR/'config.ini'))
     email = config['Spacetrack']['email']
     pw = config['Spacetrack']['pw']
     

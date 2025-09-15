@@ -17,8 +17,8 @@ import numpy as np
 import pandas as pd
 import time
 
-from SatelliteData import *
-from utils import get_data_home
+from OrbitalAnalysis.SatelliteData import *
+from OrbitalAnalysis.utils import get_data_home
 
 
 #%% Propagate single object
@@ -35,7 +35,7 @@ satellite = Satrec.twoline2rv(s, t)
 # Create a list of epochs
 t0 = satellite.jdsatepoch # Epoch of TLEs (JD)
 duration = 10 # Duration (days)
-N = 1000000       # Number of time steps
+N = 10000#00       # Number of time steps
 t = np.linspace(t0,t0+duration,N)
 # Split into whole number and fration
 jd, fr = divmod(t, 1)
@@ -45,7 +45,16 @@ t_start = time.time()
 e, r, v = satellite.sgp4_array(jd, fr)
 print("Single object propagation: {} timesteps.".format(N))
 print("Runtime: {} s".format(time.time() - t_start))
-del e,r,v # Delete outputs to free up space
+# del e,r,v # Delete outputs to free up space
+
+# import pdb
+# pdb.set_trace()
+
+# import matplotlib.pyplot as plt
+# fig = plt.figure()
+# ax = fig.add_subplot(projection='3d')
+# ax.plot(r[:,0],r[:,1],r[:,2],'-k')
+
 
 #%% Propagate multiple objects
 

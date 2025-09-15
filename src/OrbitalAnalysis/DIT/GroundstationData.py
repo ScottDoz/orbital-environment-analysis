@@ -93,6 +93,34 @@ def get_groundstations(network='SSR'):
         # See: https://pirlwww.lpl.arizona.edu/resources/guide/software/SPICE/naif_ids.html
         codes = 399000 + 200 + np.arange(len(station_pos))+1
     
+    elif network.lower() == 'leolabs':
+        # LeoLabs network
+        # https://leolabs.space/radars/
+        
+        # TODO: update altitude of each site  (lat, lon, alt)
+        station_pos = [(65.13, 360.0 - 147.47, 0.), # Poker Flat
+                       (31.96, 360.0 - 103.23, 0.), # Midlan Space Radar
+                       (-45.04, 170.1, 0.), # Kiwi Space Radar 1
+                       (-45.04, 170.1, 0.), # Kiwi Space Radar 2
+                       (10.41, 360.0 - 85.48, 0.), # Costa Rica Space Radar 1
+                       (10.41, 360.0 - 85.48, 0.), # Costa Rica Space Radar 2
+                       (37.,  360.0 - 25.14, 0.), # Azores Space Radar 1
+                       (37.,  360.0 - 25.14, 0.), # Azores Space Radar 2
+                       (-33.31, 116.03, 0.), # Western Australia Space Radar 1
+                       (-33.31, 116.03, 0.), # Western Australia Space Radar 2
+                       (31.87, 360.0 - 109.51, 0.), # Arizona Space Radar 1
+                       ]
+        
+        # Define site names
+        # Note: Site names must be entirely in upper case
+        sites = ['POKER_FLAT', 'MIDLAND', 'KIWI_1', 'KIWI_2', 
+                 'COSTA_RICA_1', 'COSTA_RICA_2', 'AZORES_1', 'AZORES_2',
+                 'WA_1', 'WA_2', 'ARIZONA_1']
+        # Define site NAIF ID codes
+        # Start numbering from 300200
+        # See: https://pirlwww.lpl.arizona.edu/resources/guide/software/SPICE/naif_ids.html
+        codes = 399000 + 300 + np.arange(len(station_pos))+1
+    
     
     # Extract coords
     lat = np.array([x[0] for x in station_pos])

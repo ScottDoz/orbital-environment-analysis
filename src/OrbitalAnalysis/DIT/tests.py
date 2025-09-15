@@ -195,6 +195,8 @@ def test_plot_visual_magnitude(station):
     # Extract access for station of interest
     df = dfvis_ssrd[dfvis_ssrd['Station'] == station]
     
+    pdb.set_trace()
+    
     # Create time vector sampling all access periods
     step = 10 # Timestep (s)
     et = [] # Empty array
@@ -510,4 +512,5 @@ def validate_optical_access(case):
 
 
 if __name__ == "__main__":
-    test_run_analysis()
+    # test_run_analysis()
+    pass

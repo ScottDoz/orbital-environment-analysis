@@ -12,7 +12,7 @@ from OrbitalAnalysis.SatelliteData import *
 from OrbitalAnalysis.Clustering import *
 from OrbitalAnalysis.Distances import *
 from OrbitalAnalysis.Density import *
-from OrbitalAnalysis.Catalog import *
+# from OrbitalAnalysis.Catalog import *
 from OrbitalAnalysis.Visualization import *
 # from DIT import *
 # from Ephem import *

@@ -635,6 +635,39 @@ class SPICEKernels:
 
 # TODO: Convert pck00010.tpc to native. Need to include unix2dos in requirements: conda install -c conda-forge unix2dos
 
+#%% Ephem coverage
+        
+def get_ephem_details(ephem_file):
+    
+    # Kernel file directory
+    kernel_dir = get_data_home()  / 'Kernels'
+    
+    # Generic kernels
+    spice.furnsh( str(kernel_dir/'naif0012.tls') ) # Leap second kernel
+    spice.furnsh( str(kernel_dir/'pck00010.tpc') ) # Planetary constants kernel
+    
+    # Load ephem file
+    spice.furnsh( ephem_file ) # Client Satellite
+    
+    results = dict()
+
+    # Get the NAIF IDs of spacecraft from satellite ephemeris file
+    ids = spice.spkobj(ephem_file) # SpiceCell object
+    numobj = len(ids)
+    sat_NAIF = [ids[i] for i in range(numobj) ] # -10002001 NAIF of the satellite
+    
+    # Get the coverage of the satellite spk file
+    # Coverage time is in et
+    for id in ids:
+        cov = spice.spkcov(ephem_file,ids[0]) # SpiceCell object
+        start_et, stop_et = cov
+        results[id] = {'start_et': start_et, 'stop_et':stop_et}
+        
+    
+    # Create dict to store results
+    
+    return results
+    
 #%% Ephemeris generation
 
 def create_satellite_ephem(sat,start_et,stop_et,step,method='tle'):
@@ -1102,7 +1135,7 @@ def get_ephem_ITFR(et,groundstations=['DSS-43']):
     return df
 
 
-def get_ephem_TOPO(et,groundstations=['DSS-43']):
+def get_ephem_TOPO(et,groundstations=['DSS-43'], sat_ephem=None):
     '''
     Get the ephemerides of the satellite and sun in topocentric reference frames
     located at a set of groundstations. Returns additional computed properties
@@ -1132,7 +1165,12 @@ def get_ephem_TOPO(et,groundstations=['DSS-43']):
     
     # Filenames
     # sat_ephem_file = str(get_data_home()/'GMATscripts'/'Access'/'EphemerisFile1.bsp')
-    sat_ephem_file = str(get_data_home()/'Kernels'/'sat.bsp')
+    if sat_ephem is None:
+        sat_ephem_file = str(get_data_home()/'Kernels'/'sat.bsp')
+    else:
+        sat_ephem_file = sat_ephem
+    
+    # Station ephem file
     station_ephem_file = str(kernel_dir/'earthstns_itrf93_201023.bsp')
     
     # Load Kernels
