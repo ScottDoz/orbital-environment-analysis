@@ -630,6 +630,9 @@ def test_kde_density():
     result = compute_density(df)
     df['p_hxhyhz'] = result
     
+    # Plot histogram of density
+    # plt.hist(df.p_hxhyhz,bins=100)
+    
     # Fit a kde model
     kde = fit_density_kde()
     
