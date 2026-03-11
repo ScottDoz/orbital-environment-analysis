@@ -1006,7 +1006,8 @@ def load_2019_experiment_data(mm, compute_params=True, compute_differentials=Tru
             dfm = _load_2019_experiment_data_single_epoch(m, compute_params=compute_params)
             # # Add label for the set epoch
             dfm.insert(9,("Set"),m)
-            df = df.append(dfm) # Append
+            # df = df.append(dfm) # Append
+            df = pd.concat([df, dfm], ignore_index=True) # Append
     
         # Sort data by Epoch
         df.sort_values(by=['NoradId','Epoch'],ascending=[True,True],inplace=True,ignore_index=True)

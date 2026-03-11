@@ -6,6 +6,7 @@ networkx
 numpy
 pandas==1.5.3
 #scikit-learn
+sgp4
 spacetrack
 spiceypy
 TLE-tools

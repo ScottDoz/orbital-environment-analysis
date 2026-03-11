@@ -1278,10 +1278,16 @@ def solve_OrbitToOrbit_mccue(orb1,orb2,
         # Finish with an optimization method ----------------------------------
         
         # Using fmin (Downhill simplex algorithm)
-        res = optimize.fmin(f_mccue, x0_guess, 
-                      args=(a1,e1,inc1,w1,om1,a2,e2,inc2,w2,om2,mu),
-                      full_output=True,
-                      disp=False)
+        try:
+            res = optimize.fmin(f_mccue, x0_guess, 
+                          args=(a1,e1,inc1,w1,om1,a2,e2,inc2,w2,om2,mu),
+                          full_output=True,
+                          disp=False)
+        except:
+            print("Error")
+            print("orb1" + str(orb1))
+            print("orb2" + str(orb2))
+            pdb.set_trace()
         # Extract results res = (x0,fval,n_iter,funcals,warnflag,allvecs)
         # Format result into dictionary
         result_dict = {'x':res[0],'fun':res[1],'iter':x[2],'funcals':x[3],'warnflag':x[4]}

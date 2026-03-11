@@ -23,6 +23,7 @@ from OrbitalAnalysis.Functions import coe_from_sv
 
 from OrbitalAnalysis.SatelliteData import *
 from OrbitalAnalysis.Density import *
+from OrbitalAnalysis.Visualization import plot_h_space_numeric
 
 import numpy as np
 import pandas as pd
@@ -643,6 +644,9 @@ def test_kde_density():
     # Query density at point
     Xqt = normalize_coords(Xq) # Normalize coords of query point (kde fit on normalized hx,hy,hz coords)
     p = float(kde.score_samples(Xqt)) # Interpolate log density at this location. Confirm that it does equal dq computed above
-
+    
+    plot_h_space_numeric(df,color='p_hxhyhz',logColor=False,colorscale='Blackbody')
+    
+    
     return
 
