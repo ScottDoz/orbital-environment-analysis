@@ -68,12 +68,23 @@ def test_run_analysis():
     #             "RAAN": 0.0, "AOP": 0.0, "TA": 0.00,
     #             "rcs": 1.9888}
     
-    # Steller Inner Shell Rating
+    # # Steller Inner Shell Rating
+    # save_folder = 'mydata'
+    # sat_dict = {"DateFormat": "UTCGregorian", "Epoch": '26 Oct 2020 16:00:00.000',
+    #             "SMA": 850.+rE, "ECC": 0.0, "INC": 60.00,
+    #             "RAAN": 0.0, "AOP": 0.0, "TA": 0.00,
+    #             "rcs": 1.9888}
+    
+    # Servicing Mission Client
     save_folder = 'mydata'
     sat_dict = {"DateFormat": "UTCGregorian", "Epoch": '26 Oct 2020 16:00:00.000',
-                "SMA": 850.+rE, "ECC": 0.0, "INC": 60.00,
-                "RAAN": 0.0, "AOP": 0.0, "TA": 0.00,
+                "SMA": 6803.154120854776, "ECC": 0.0014176146268132896, "INC": np.rad2deg(0.9015521730288635),
+                "RAAN": np.rad2deg(-2.9716551810327254), "AOP": np.rad2deg(0.8986224536838303), 
+                "TA": np.rad2deg(-0.8964062521791888),
                 "rcs": 1.9888}
+    
+    # orb2 = {'a': 6803.154120854776*1000, 'e': 0.0014176146268132896, 'i': 0.9015521730288635, 
+    #         'om': -2.9716551810327254, 'w': 0.8986224536838303, 'M': -0.8964062521791888, 'units': 'm'}
     
     # # Endurosat
     # save_folder = 'mydata'

@@ -718,7 +718,7 @@ def create_satellite_ephem(sat,start_et,stop_et,step,method='tle'):
         
         # Generate from TLEs
         # Get TLEs over epoch range and write to file
-        from SatelliteData import get_tle
+        from OrbitalAnalysis.SatelliteData import get_tle
         tle_lines = get_tle(sat,epoch=[start_et,stop_et],tle_type='tle')
         infile = kernel_dir/'sat_TLEs.tle' # Filename
         print('Writing TLE file {}'.format(str(infile)), flush=True)
@@ -1046,13 +1046,18 @@ def create_station_ephem(df, network_name='SSR'):
 
 #%% Ephemerides in Earth-fixed frame
 
-def get_ephem_ITFR(et,groundstations=['DSS-43']):
+def get_ephem_ITFR(et,groundstations=['DSS-43'], sat_ephem=None):
     
     # Kernel file directory
     kernel_dir = get_data_home()  / 'Kernels'
     
     # sat_ephem_file = str(get_data_home()/'GMATscripts'/'Access'/'EphemerisFile1.bsp')
-    sat_ephem_file = str(get_data_home()/'Kernels'/'sat.bsp')
+    # Filenames
+    # sat_ephem_file = str(get_data_home()/'GMATscripts'/'Access'/'EphemerisFile1.bsp')
+    if sat_ephem is None:
+        sat_ephem_file = str(get_data_home()/'Kernels'/'sat.bsp')
+    else:
+        sat_ephem_file = sat_ephem
     
     # Load Kernels
     
@@ -1134,6 +1139,98 @@ def get_ephem_ITFR(et,groundstations=['DSS-43']):
     
     return df
 
+def get_ephem_ECI(et,groundstations=['DSS-43'], sat_ephem=None):
+    
+    # Kernel file directory
+    kernel_dir = get_data_home()  / 'Kernels'
+    
+    # sat_ephem_file = str(get_data_home()/'GMATscripts'/'Access'/'EphemerisFile1.bsp')
+    # Filenames
+    # sat_ephem_file = str(get_data_home()/'GMATscripts'/'Access'/'EphemerisFile1.bsp')
+    if sat_ephem is None:
+        sat_ephem_file = str(get_data_home()/'Kernels'/'sat.bsp')
+    else:
+        sat_ephem_file = sat_ephem
+    
+    # Load Kernels
+    
+    # Generic kernels
+    spice.furnsh( str(kernel_dir/'naif0012.tls') ) # Leap second kernel
+    spice.furnsh( str(kernel_dir/'pck00010.tpc') ) # Planetary constants kernel
+    # Ephemerides
+    spice.furnsh( str(kernel_dir/'de440s.bsp') )   # Solar System ephemeris
+    spice.furnsh( sat_ephem_file ) # Satellite
+    # Frame kernels
+    spice.furnsh( str(kernel_dir/'earth_000101_220616_220323.bpc') ) # Earth binary PCK (Jan 2000 - Jun 2022)
+    # DSN Stations
+    spice.furnsh( str(kernel_dir/'earthstns_itrf93_201023.bsp') ) # DSN station Ephemerides
+    spice.furnsh( str(kernel_dir/'earth_topo_201023.tf') ) # Earth topocentric frame text kernel
+    # SSR Stations
+    spice.furnsh( str(kernel_dir/'SSR_stations.bsp') ) # SSR station Ephemerides
+    spice.furnsh( str(kernel_dir/'SSR_stations.tf') )  # SSR topocentric frame text kernel
+    # SSRD Stations
+    spice.furnsh( str(kernel_dir/'SSRD_stations.bsp') ) # SSRD station Ephemerides
+    spice.furnsh( str(kernel_dir/'SSRD_stations.tf') )  # SSRD topocentric frame text kernel
+    
+    
+    
+    # Get the NAIF IDs of spacecraft from satellite ephemeris file
+    ids = spice.spkobj(sat_ephem_file) # SpiceCell object
+    numobj = len(ids)
+    sat_NAIF = [ids[i] for i in range(numobj) ] # -10002001 NAIF of the satellite
+    
+    # Get the coverage of the spk file
+    # Coverage time is in et
+    cov = spice.spkcov(sat_ephem_file,ids[0]) # SpiceCell object
+    start_et, stop_et = cov
+    
+    # Check satellite ephem
+    if et.min() < start_et:
+        raise ValueError("Warning: et outside spk coverage range")
+    if et.max() > stop_et:
+        raise ValueError("Warning: et outside spk coverage range")
+    
+    # Convert ET to datetimes
+    dt = spice.et2datetime(et) # Datetime
+    t = Time(dt, format='datetime', scale='utc') # Astropy Time object
+    t_iso = t.iso # Times in iso
+    
+    
+    # Create dataframe for output
+    df = pd.DataFrame(columns=['ET','UTCG',
+                               'Sat.X','Sat.Y','Sat.Z',
+                               'Sun.X','Sun.Y','Sun.Z'])
+    # Add epochs
+    df.ET = et
+    df.UTCG = t_iso
+    df.UTCG = pd.to_datetime(df.UTCG) # Convert to Datetime object
+    
+    # Ephemeris settings
+    # ref = 'ITRF93'  # High-precision Earth-fixed reference frame
+    # abcorr = 'lt+s' # Aberration correction flag
+    # obs = 'earth'   # Observing body name
+    
+    # Satellite ephemeris (targ, et, ref, abcorr, obs)
+    [satv, ltime] = spice.spkpos( str(sat_NAIF[0]), et, 'J2000', 'lt+s', 'earth')
+    df['Sat.X'] = satv[:,0]
+    df['Sat.Y'] = satv[:,1]
+    df['Sat.Z'] = satv[:,2]
+    # Sun ephemeris  (targ, et, ref, abcorr, obs)
+    [sunv, ltime] = spice.spkpos( 'sun', et, 'J2000', 'lt+s', 'earth')   
+    df['Sun.X'] = sunv[:,0]
+    df['Sun.Y'] = sunv[:,1]
+    df['Sun.Z'] = sunv[:,2]
+    
+    # Groundstation ephemerides
+    for gs in groundstations:
+        # GS ephemeris  (targ, et, ref, abcorr, obs)
+        [gsv, ltime] = spice.spkpos( gs, et, 'J2000', 'lt+s', 'earth')
+        df[gs+'.X'] = gsv[:,0]
+        df[gs+'.Y'] = gsv[:,1]
+        df[gs+'.Z'] = gsv[:,2]
+        
+    
+    return df
 
 def get_ephem_TOPO(et,groundstations=['DSS-43'], sat_ephem=None):
     '''
