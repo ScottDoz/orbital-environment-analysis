@@ -134,6 +134,31 @@ df['dhtheta'] = df.groupby(by='NoradId')['htheta'].diff() # htheta increment (ra
 df['dt'] = df.groupby(by='NoradId')['EpochDT'].diff().dt.total_seconds() # Time step (s)
 df['hthetadot'] = df['dhtheta']/df['dt'] # Rate of change in htheta (rad/s)
 
+# Change in radial component
+df['dhr'] = df.groupby(by='NoradId')['hr'].diff() # hr increment (km^2/s)
+df['hrdot'] = df['dhr']/df['dt'] # Rate of change in hr (rad/s)
+
+# Change in z component
+df['dhz'] = df.groupby(by='NoradId')['hz'].diff() # hr increment (km^2/s)
+df['hzdot'] = df['dhz']/df['dt'] # Rate of change in hz (rad/s)
+
+#%% Generate a plot of objects demonstrating the differnet types of motion
+fig, ax = plt.subplots(3,1,figsize=(10, 8))
+# Axes [0] settings
+# ax[0].set_xlabel(r'Epoch',fontsize=16)
+ax[0].plot(df['hr'], df['hrdot'], ".r") # Increasing
+ax[0].set_xlabel(r'$ h_{r} $ (Measured) (km/s^2)',fontsize=16)
+ax[0].set_ylabel(r'$ \dot h_{r} $ (Measured) (km/s^3)',fontsize=16)
+
+# ax[0].set_xlabel(r'Epoch',fontsize=16)
+ax[1].set_xlabel(r'$ h_{\theta}$ (rad)',fontsize=16)
+ax[1].set_ylabel(r'$ \dot h_{\theta}$ (rad/s)',fontsize=16)
+ax[1].plot(df['h'], df['hrdot'], ".r") # Increasing
+
+# ax[0].set_xlabel(r'Epoch',fontsize=16)
+ax[2].set_xlabel(r'$ h_{z} $ (Measured) (km/s^2)',fontsize=16)
+ax[2].set_ylabel(r'$ \dot h_{z} $ (Measured) (km/s^3)',fontsize=16)
+ax[2].plot(df['hz'], df['hzdot'], ".r") # Increasing
 
 #%% Extreme outliers (new dataset)
 
@@ -158,20 +183,24 @@ df = df[df.dt > 0.]
 # Remove small timesteps (dt < say 3600 seconds)
 df = df[df.dt > 3600.]
 
+# Define Median Absolute Deviation
+def mad(x):
+    return np.median(np.abs(x - np.median(x)))
+
 # Compute statitics
 dfstats = df.groupby(by='NoradId').agg({'Name':['first'],
-                                        'h':['mean','std','min','max','median','mad','count'],
-                                        'hz':['mean','std','min','max','median','mad','count'],
-                                        'htheta':['mean','std','min','max','median','mad','count'],
-                                        'dhtheta':['mean','std','min','max','median','mad','count'],
-                                        'hphi':['mean','std','min','max','median','mad','count'],
-                                        'OMdot_p':['mean','std','min','max','median','mad','count'],
-                                        'hthetadot':['mean','std','min','max','median','mad','count'],
-                                        'a':['mean','std','min','max','median','mad','count'],
-                                        'e':['mean','std','min','max','median','mad','count'],
-                                        'i':['mean','std','min','max','median','mad','count'],
-                                        'q':['mean','std','min','max','median','mad','count'],
-                                        'p':['mean','std','min','max','median','mad','count'],
+                                        'h':['mean','std','min','max','median',mad,'count'],
+                                        'hz':['mean','std','min','max','median',mad,'count'],
+                                        'htheta':['mean','std','min','max','median',mad,'count'],
+                                        'dhtheta':['mean','std','min','max','median',mad,'count'],
+                                        'hphi':['mean','std','min','max','median',mad,'count'],
+                                        'OMdot_p':['mean','std','min','max','median',mad,'count'],
+                                        'hthetadot':['mean','std','min','max','median',mad,'count'],
+                                        'a':['mean','std','min','max','median',mad,'count'],
+                                        'e':['mean','std','min','max','median',mad,'count'],
+                                        'i':['mean','std','min','max','median',mad,'count'],
+                                        'q':['mean','std','min','max','median',mad,'count'],
+                                        'p':['mean','std','min','max','median',mad,'count'],
                                         })
 
 
@@ -255,7 +284,6 @@ random_norad_Retro = sample(norad_Retro,200)
 random_norad_Osc = sample(norad_Osc,200)
 
 # Generate a plot of objects demonstrating the differnet types of motion
-
 fig, ax = plt.subplots(3,1,figsize=(10, 8))
 # Plot Prograde
 for num in random_norad_Pro:
@@ -285,6 +313,8 @@ handles, labels = ax[2].get_legend_handles_labels()
 labels, ids = np.unique(labels, return_index=True)
 handles = [handles[i] for i in ids]
 ax[2].legend(handles, labels, loc='best')
+
+
 
 #%% Plots
 

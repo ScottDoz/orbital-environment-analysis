@@ -18,8 +18,563 @@ import pandas as pd
 
 # Module imports
 # from sr_tools.Astrodynamics.Functions import sv_from_coe
+from astrologistics.optimizers import chandrupatla
 
 import pdb
+
+#%% Angular Momentum Distances ------------------------------------------------
+
+# dV = dH/r 
+def dist_dH_atx(x1,x2):
+    '''
+    dV = dH/atx where atx = (a1+a2)/2
+    Euclidean distance in specific anglular momentum space (Hx,Hy,Hz) divided by
+    semi-major axis of initial orbit.
+    '''
+    
+    # Extract elements
+    hx1,hy1,hz1,a1 = x1.T
+    hx2,hy2,hz2,a2 = x2.T
+    
+    atx = (a1+a2)/2
+    
+    # Compute distance
+    # dist = np.linalg.norm(x2-x1,axis=-1)
+    dH = np.sqrt( (hx1-hx2)**2 + (hy1-hy2)**2 + (hz1-hz2)**2  )
+    dist = dH/a1
+    # dist = dH/a2
+    # dist = dH/a1; ind = dH/a2 < dH/a1; dist[ind] = dH[ind]/a2[ind]
+    # dist = dH/((a1+a2)/2) # This works well
+    # dist = 0.5*dH/a1 + 0.5*dH/a2
+    
+    dist = dH/atx
+    
+    # # dHr and dHt components
+    # # Project h2 on h1
+    # # Find projection of h2 on h1, then subtract h1
+    # # proj_a_on_b = (a.b)/(b.b) 
+    # # b = h1
+    # # a = h2
+    # proj_a_b = abs((hx1*hx2 + hy1*hy2 + hz1*hz2)/(hx1**2 + hy1**2 + hz1**2)) # Scalar component
+    # dh_n = np.sqrt((proj_a_b*hx1 - hx1)**2 + (proj_a_b*hy1 - hy1)**2 + (proj_a_b*hz1 - hz1)**2)
+    # dh_t = np.sqrt( dH**2 - dh_n**2 )
+    
+    
+    
+    # dist1 = np.sqrt( dh_n**2/a1**2 + dh_t**2/a2**2  ) # if z1<a2    
+    # # dist[a2>a1] = np.sqrt( dh_n[a2>a1]**2/a2[a2>a1]**2 + dh_t[a2>a1]**2/a1[a2>a1]**2  )
+    
+    return dist
+
+def dist_dH_r_nodal(x1,x2):
+    '''
+    Nodal Transfer. Hohmann-like 180 deg transfer along the line of nodes.
+    Compute optimal plane change angle that minimizes dV = dH1/r1 + dH2/r2
+    
+    Note: this approx slightly over-estimates the delta-V compared to the 
+    actual delta-V of a nodal tranfser. It gives an upper bound. The true
+    optimal delta-V will be less than this distance.
+
+    Parameters
+    ----------
+    x1 : TYPE
+        DESCRIPTION.
+    x2 : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    TYPE
+        DESCRIPTION.
+
+    '''
+    
+    # Assume Htx is coplanar to H1, H2
+    # I.e. transfer is hohmann-like transfer along the line of nodes.
+    # Use code from dist_mnid to find terminal points r1,r2
+    
+    
+    # Formatulation is based on Eccentric anomaly approach
+    # Lazovic (1993) "The Appoximate Values of Eccentric Anomalies of Proximity"
+    
+    # See also Hoots, et al. (1984) "An analytic method to determine future close
+    # appoaches between satellites"
+    
+    # See also Murison & Munteanu (2006) "On the Distance Fucntion between Two
+    # Confocal Keplerian Orbits" for an alternative approach
+    
+    # Extract elements
+    a1,e1,inc1,om1,w1 = x1.T
+    a2,e2,inc2,om2,w2 = x2.T
+
+    # Find the eccentric anomalies of the relative nodes
+    # See Lazovic (1993) "The Appoximate Values of Eccentric Anomalies of Proximity"
+
+    # Compute the relative inclination of the two orbits (eq. 2)
+    # see also Murison & Munteanu (2006) eq. 27
+    I = np.arccos(np.cos(inc1)*np.cos(inc2) + np.sin(inc1)*np.sin(inc2)*np.cos(om2-om1) )
+    
+    # Compute basis vectors of the perifocal frames P,Q
+    # Use transformation matrix from perifocal to ECEF (see Curtis pg 174) QxX
+    # P = [QxX]*[1,0,0]^T (1st column of transformation matrix)
+    P1 = np.column_stack([np.cos(om1)*np.cos(w1)-np.sin(om1)*np.sin(w1)*np.cos(inc1),
+                          np.sin(om1)*np.cos(w1)+np.cos(om1)*np.cos(inc1)*np.sin(w1),
+                          np.sin(inc1)*np.sin(w1),
+                          ])
+    P2 = np.column_stack([np.cos(om2)*np.cos(w2)-np.sin(om2)*np.sin(w2)*np.cos(inc2),
+                          np.sin(om2)*np.cos(w2)+np.cos(om2)*np.cos(inc2)*np.sin(w2),
+                          np.sin(inc2)*np.sin(w2),
+                          ])
+    
+    # Q = [QxX]*[0,1,0]^T (2nd column of transformation matrix)
+    Q1 = np.column_stack([-np.cos(om1)*np.sin(w1)-np.sin(om1)*np.cos(inc1)*np.cos(w1),
+                          -np.sin(om1)*np.sin(w1)+np.cos(om1)*np.cos(inc1)*np.cos(w1),
+                          np.sin(inc1)*np.cos(w1),
+                          ])
+    Q2 = np.column_stack([-np.cos(om2)*np.sin(w2)-np.sin(om2)*np.cos(inc2)*np.cos(w2),
+                          -np.sin(om2)*np.sin(w2)+np.cos(om2)*np.cos(inc2)*np.cos(w2),
+                          np.sin(inc2)*np.cos(w2),
+                          ])
+    
+    # H = [QxX]*[0,0,1]^T (3rd column of transformation matrix)
+    H1 = np.column_stack([np.sin(om1)*np.sin(inc1),
+                          -np.cos(om1)*np.sin(inc1),
+                          np.cos(inc1),
+                          ])
+    H2 = np.column_stack([np.sin(om2)*np.sin(inc2),
+                          -np.cos(om2)*np.sin(inc2),
+                          np.cos(inc2),
+                          ])
+    
+    # Find the eccentric anomalies of the intersection
+    # Want to find points where (r1.H2 = 0) & (r2.H1 = 0)
+    
+    # The position vectors can be written in the perifocal coordiantes
+    # r1 = a1*(cos(E1) - e1)*P1 + b1*sinE1*Q1
+    # r2 = a2*(cos(E2) - e2)*P2 + b2*sinE2*Q2
+    # (using rmag = a(1-eCos(E)) )
+    
+    # Compute the semi-minor axis b
+    b1 = a1*np.sqrt(1. - e1**2)
+    b2 = a2*np.sqrt(1. - e2**2)
+    
+    # Compute the coefficients of the solution (eq 5)
+    # Use einsum to compute dot products
+    A1 = b1*np.einsum('ij,ij->i', Q1, H2 )
+    B1 = a1*np.einsum('ij,ij->i', P1, H2 )
+    C1 = -a1*e1*np.einsum('ij,ij->i', P1, H2 )
+    A2 = b2*np.einsum('ij,ij->i', Q2, H1 )
+    B2 = a2*np.einsum('ij,ij->i', P2, H1 )
+    C2 = -a2*e2*np.einsum('ij,ij->i', P2, H1 )
+    
+    # Solve for eccentric anomalies (eq 6) (2 solutions)
+    E11 = np.arctan2(-A1*B1 + C1*np.sqrt(A1**2 + B1**2 - C1**2), A1**2 - C1**2 )
+    E12 = np.arctan2(-A1*B1 - C1*np.sqrt(A1**2 + B1**2 - C1**2), A1**2 - C1**2 )
+    E21 = np.arctan2(-A2*B2 + C2*np.sqrt(A2**2 + B2**2 - C2**2), A2**2 - C2**2 )
+    E22 = np.arctan2(-A2*B2 - C2*np.sqrt(A2**2 + B2**2 - C2**2), A2**2 - C2**2 )
+    
+    # Ensure each solution satisfies eq 6
+    # The solution E11+pi is also valid. Only 1 will satisfy eq 6.
+    # (Testing - valid within tolerance 1E-13)
+    E11[abs(A1*np.sin(E11)+B1*np.cos(E11)+C1) > abs(A1*np.sin(E11+np.pi)+B1*np.cos(E11+np.pi)+C1)] += np.pi
+    E12[abs(A1*np.sin(E12)+B1*np.cos(E12)+C1) > abs(A1*np.sin(E12+np.pi)+B1*np.cos(E12+np.pi)+C1)] += np.pi
+    E21[abs(A2*np.sin(E21)+B2*np.cos(E21)+C2) > abs(A2*np.sin(E21+np.pi)+B2*np.cos(E21+np.pi)+C2)] += np.pi
+    E22[abs(A2*np.sin(E22)+B2*np.cos(E22)+C2) > abs(A2*np.sin(E22+np.pi)+B2*np.cos(E22+np.pi)+C2)] += np.pi
+    
+    # Find position vectors at each of these points
+    # r1 = a1*(cos(E1) - e1)*P1 + b1*sinE1*Q1
+    r11 = (a1*(np.cos(E11) -e1))[:, np.newaxis]*P1 + (b1*np.sin(E11))[:, np.newaxis]*Q1
+    r12 = (a1*(np.cos(E12) -e1))[:, np.newaxis]*P1 + (b1*np.sin(E12))[:, np.newaxis]*Q1
+    r21 = (a2*(np.cos(E21) -e2))[:, np.newaxis]*P2 + (b2*np.sin(E21))[:, np.newaxis]*Q2
+    r22 = (a2*(np.cos(E22) -e2))[:, np.newaxis]*P2 + (b2*np.sin(E22))[:, np.newaxis]*Q2
+    
+    # New
+    
+    # Compute magnitudes
+    r11_mag = np.linalg.norm(r11, axis=-1)
+    r12_mag = np.linalg.norm(r12, axis=-1)
+    r21_mag = np.linalg.norm(r21, axis=-1)
+    r22_mag = np.linalg.norm(r22, axis=-1)
+    
+    # Compute magntiudes of transfers
+    mu = 3.986004418e5; # Gravitational parameter of Earth (km3s-2)
+    h1 = np.sqrt(mu*a1* np.abs(1. - e1**2))
+    h2 = np.sqrt(mu*a2* np.abs(1. - e2**2))
+    p1 = a1*(1. - e1**2) # Semi-latus rectum
+    p2 = a2*(1. - e2**2) # Semi-latus rectum
+    phi = np.arccos( np.einsum('ij,ij->i',H1,H2) ) # Total plane change betweeen H1, H2
+    ind = np.all(H1-H2 == 0, axis=1); phi[ind] = 0. # Fix for H1==H2
+    
+    #Find velocities at these points. Eq 4.40 of Batin
+    # v1 = -(sqrt(mu*a)/r)*sin(E)*P + (sqrt(mu*p)/r)*cos(E)*Q 
+    v11 = ( -(np.sqrt(mu*a1)/r11_mag)*np.sin(E11) )[:, np.newaxis]*P1 + ( (np.sqrt(mu*p1)/r11_mag)*np.cos(E11) )[:, np.newaxis]*Q1
+    v12 = ( -(np.sqrt(mu*a1)/r12_mag)*np.sin(E12) )[:, np.newaxis]*P1 + ( (np.sqrt(mu*p1)/r12_mag)*np.cos(E12) )[:, np.newaxis]*Q1
+    v21 = ( -(np.sqrt(mu*a2)/r21_mag)*np.sin(E21) )[:, np.newaxis]*P2 + ( (np.sqrt(mu*p2)/r21_mag)*np.cos(E21) )[:, np.newaxis]*Q2
+    v22 = ( -(np.sqrt(mu*a2)/r22_mag)*np.sin(E22) )[:, np.newaxis]*P2 + ( (np.sqrt(mu*p2)/r22_mag)*np.cos(E22) )[:, np.newaxis]*Q2
+    
+    
+    # # Determine line of nodes from H1xH2
+    # N = np.cross(H1,H2)/np.linalg.norm(np.cross(H1,H2),axis=-1)[:, np.newaxis]
+    
+    # # Compute unit vectors in r11,r12
+    # u11 = r11/r11_mag[:, np.newaxis] # r11 is aligned along +N
+    # u12 = r12/r12_mag[:, np.newaxis]
+    # u21 = r21/r21_mag[:, np.newaxis]
+    # u22 = r22/r22_mag[:, np.newaxis] # r22 is aligned along +N
+    
+    # Determine combinations of transfers
+    # (r11,r21): from +N to -N  # Check: anlge = np.arccos(np.einsum('ij,ij->i',u11,u21)) = pi
+    # (r12,r22)" from -N to +N  # Check: angle = np.arccos(np.einsum('ij,ij->i',u12,u22)) = pi
+    
+    # r11 to r21 transfer
+    r1_mag = np.linalg.norm(r11, axis=-1)
+    r2_mag = np.linalg.norm(r21, axis=-1)
+    # Compute shape of transfer orbit - Hohmann transfer from r1 to r2
+    atx = (r1_mag+r2_mag)/2 # Transfer semi-major axis
+    etx= abs((r1_mag-r2_mag)/(r1_mag+r2_mag)); # Eccentricity
+    htx = np.sqrt(mu*atx*(1-etx**2))
+    vtx1 = np.sqrt( 2*mu*(1/r1_mag - 1/(2*atx) )) # Velocity of tranfser at r1 (from vis viva equation)
+    vtx2 = np.sqrt( 2*mu*(1/r2_mag - 1/(2*atx) )) # Velocity of tranfser at r2 (from vis viva equation)
+    # vtx1 
+    # Determine orientation of htx that minimizes delta-V
+    try:
+        alpha_sol, iters = chandrupatla(f_optimal_pc,
+                              -0.01*np.ones(len(phi)),      # Min range 
+                              phi + 0.01*np.ones(len(phi)), # Max range
+                              args=(r1_mag, h1, r2_mag, h2, phi, htx),
+                              return_iter=True,
+                              )
+    except:
+        pdb.set_trace()
+    # Now compute dV
+    dH1 = np.sqrt(h1**2 + htx**2 - 2*h1*htx*np.cos(alpha_sol) )
+    dH2 = np.sqrt(h2**2 + htx**2 - 2*h2*htx*np.cos(phi-alpha_sol) ) 
+    dVH_r11_r21 = dH1/r1_mag + dH2/r2_mag # Delta=V
+    # Alternative - using velocities
+    # Eq 6.19 of Curtis
+    v1 = np.sqrt( 2*mu*(1/r1_mag - 1/(2*a1) )) # Velocity of orbit at r1
+    v1t = h1/r1_mag # Tangential velocity at r1
+    v1r = np.sqrt(v1**2 - v1t**2) # Radial velocity at r1
+    v2 = np.sqrt( 2*mu*(1/r2_mag - 1/(2*a2) )) # Velocity of orbit at r2
+    v2t = h2/r2_mag # Tangential velocity at r2
+    v2r = np.sqrt(v2**2 - v2t**2) # Radial velocity at r2
+    dV1 = np.sqrt( (0. - v1r)**2 + v1t**2 + vtx1**2 - 2*v1t*vtx1*np.cos(alpha_sol)  ) # Delta-V at r1
+    dV2 = np.sqrt( (v2r - 0.)**2 + v2t**2 + vtx2**2 - 2*v2t*vtx2*np.cos(phi-alpha_sol)  ) 
+    dV_r11_r21 = dV1 + dV2
+    # TODO: check solution
+    
+    
+    
+    # r12 to r22 transfer
+    r1_mag = np.linalg.norm(r12, axis=-1)
+    r2_mag = np.linalg.norm(r22, axis=-1)
+    # Compute shape of transfer orbit
+    atx = (r1_mag+r2_mag)/2 # Transfer semi-major axis
+    etx= abs((r1_mag-r2_mag)/(r1_mag+r2_mag)); # Eccentricity
+    htx = np.sqrt(mu*atx*(1-etx**2))
+    # Determine orientation of htx that minimizes delta-V 
+    try:
+        alpha_sol, iters = chandrupatla(f_optimal_pc,
+                              -0.01*np.ones(len(phi)),      # Min range 
+                              phi + 0.01*np.ones(len(phi)), # Max range
+                              args=(r1_mag, h1, r2_mag, h2, phi, htx),
+                              return_iter=True,
+                              )
+    except:
+        pdb.set_trace()
+    # Now compute dV
+    dH1 = np.sqrt(h1**2 + htx**2 - 2*h1*htx*np.cos(alpha_sol) )
+    dH2 = np.sqrt(h2**2 + htx**2 - 2*h2*htx*np.cos(phi-alpha_sol) ) 
+    dVH_r12_r22 = dH1/r1_mag + dH2/r2_mag # Delta=V
+    # Alternative - using velocities
+    # Eq 6.19 of Curtis
+    v1 = np.sqrt( 2*mu*(1/r1_mag - 1/(2*a1) )) # Velocity of orbit at r1
+    v1t = h1/r1_mag # Tangential velocity at r1
+    v1r = np.sqrt(v1**2 - v1t**2) # Radial velocity at r1
+    v2 = np.sqrt( 2*mu*(1/r2_mag - 1/(2*a2) )) # Velocity of orbit at r2
+    v2t = h2/r2_mag # Tangential velocity at r2
+    v2r = np.sqrt(v2**2 - v2t**2) # Radial velocity at r2
+    dV1 = np.sqrt( (0. - v1r)**2 + v1t**2 + vtx1**2 - 2*v1t*vtx1*np.cos(alpha_sol)  ) # Delta-V at r1
+    dV2 = np.sqrt( (v2r - 0.)**2 + v2t**2 + vtx2**2 - 2*v2t*vtx2*np.cos(phi-alpha_sol)  ) 
+    dV_r12_r22 = dV1 + dV2
+    
+    # Compute minimum (using H solution)
+    dist = dVH_r11_r21
+    ind = dVH_r12_r22 < dVH_r11_r21
+    dist[ind] = dVH_r12_r22[ind]
+    
+    # # Compute minimum (using dV solution)
+    # dist = dV_r11_r21
+    # ind = dV_r12_r22 < dV_r11_r21
+    # dist[ind] = dV_r12_r22[ind]
+    
+    #FIXME: review distance to self x1=x2
+    
+    return dist
+
+def dist_dV_nodal(x1,x2):
+    '''
+    Nodal Transfer. Hohmann-like 180 deg transfer along the line of nodes.
+    Compute optimal plane change angle that minimizes dV = dH1/r1 + dH2/r2
+    Then, compute delta-V from velocities.
+    
+    Similar to dist_dH_r_nodal, but computes dV differently at end.
+
+    Parameters
+    ----------
+    x1 : TYPE
+        DESCRIPTION.
+    x2 : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    TYPE
+        DESCRIPTION.
+
+    '''
+    
+    # Assume Htx is coplanar to H1, H2
+    # I.e. transfer is hohmann-like transfer along the line of nodes.
+    # Use code from dist_mnid to find terminal points r1,r2
+    
+    
+    # Formatulation is based on Eccentric anomaly approach
+    # Lazovic (1993) "The Appoximate Values of Eccentric Anomalies of Proximity"
+    
+    # See also Hoots, et al. (1984) "An analytic method to determine future close
+    # appoaches between satellites"
+    
+    # See also Murison & Munteanu (2006) "On the Distance Fucntion between Two
+    # Confocal Keplerian Orbits" for an alternative approach
+    
+    # Extract elements
+    a1,e1,inc1,om1,w1 = x1.T
+    a2,e2,inc2,om2,w2 = x2.T
+
+    # Find the eccentric anomalies of the relative nodes
+    # See Lazovic (1993) "The Appoximate Values of Eccentric Anomalies of Proximity"
+
+    # Compute the relative inclination of the two orbits (eq. 2)
+    # see also Murison & Munteanu (2006) eq. 27
+    I = np.arccos(np.cos(inc1)*np.cos(inc2) + np.sin(inc1)*np.sin(inc2)*np.cos(om2-om1) )
+    
+    # Compute basis vectors of the perifocal frames P,Q
+    # Use transformation matrix from perifocal to ECEF (see Curtis pg 174) QxX
+    # P = [QxX]*[1,0,0]^T (1st column of transformation matrix)
+    P1 = np.column_stack([np.cos(om1)*np.cos(w1)-np.sin(om1)*np.sin(w1)*np.cos(inc1),
+                          np.sin(om1)*np.cos(w1)+np.cos(om1)*np.cos(inc1)*np.sin(w1),
+                          np.sin(inc1)*np.sin(w1),
+                          ])
+    P2 = np.column_stack([np.cos(om2)*np.cos(w2)-np.sin(om2)*np.sin(w2)*np.cos(inc2),
+                          np.sin(om2)*np.cos(w2)+np.cos(om2)*np.cos(inc2)*np.sin(w2),
+                          np.sin(inc2)*np.sin(w2),
+                          ])
+    
+    # Q = [QxX]*[0,1,0]^T (2nd column of transformation matrix)
+    Q1 = np.column_stack([-np.cos(om1)*np.sin(w1)-np.sin(om1)*np.cos(inc1)*np.cos(w1),
+                          -np.sin(om1)*np.sin(w1)+np.cos(om1)*np.cos(inc1)*np.cos(w1),
+                          np.sin(inc1)*np.cos(w1),
+                          ])
+    Q2 = np.column_stack([-np.cos(om2)*np.sin(w2)-np.sin(om2)*np.cos(inc2)*np.cos(w2),
+                          -np.sin(om2)*np.sin(w2)+np.cos(om2)*np.cos(inc2)*np.cos(w2),
+                          np.sin(inc2)*np.cos(w2),
+                          ])
+    
+    # H = [QxX]*[0,0,1]^T (3rd column of transformation matrix)
+    H1 = np.column_stack([np.sin(om1)*np.sin(inc1),
+                          -np.cos(om1)*np.sin(inc1),
+                          np.cos(inc1),
+                          ])
+    H2 = np.column_stack([np.sin(om2)*np.sin(inc2),
+                          -np.cos(om2)*np.sin(inc2),
+                          np.cos(inc2),
+                          ])
+    
+    # Find the eccentric anomalies of the intersection
+    # Want to find points where (r1.H2 = 0) & (r2.H1 = 0)
+    
+    # The position vectors can be written in the perifocal coordiantes
+    # r1 = a1*(cos(E1) - e1)*P1 + b1*sinE1*Q1
+    # r2 = a2*(cos(E2) - e2)*P2 + b2*sinE2*Q2
+    # (using rmag = a(1-eCos(E)) )
+    
+    # Compute the semi-minor axis b
+    b1 = a1*np.sqrt(1. - e1**2)
+    b2 = a2*np.sqrt(1. - e2**2)
+    
+    # Compute the coefficients of the solution (eq 5)
+    # Use einsum to compute dot products
+    A1 = b1*np.einsum('ij,ij->i', Q1, H2 )
+    B1 = a1*np.einsum('ij,ij->i', P1, H2 )
+    C1 = -a1*e1*np.einsum('ij,ij->i', P1, H2 )
+    A2 = b2*np.einsum('ij,ij->i', Q2, H1 )
+    B2 = a2*np.einsum('ij,ij->i', P2, H1 )
+    C2 = -a2*e2*np.einsum('ij,ij->i', P2, H1 )
+    
+    # Solve for eccentric anomalies (eq 6) (2 solutions)
+    E11 = np.arctan2(-A1*B1 + C1*np.sqrt(A1**2 + B1**2 - C1**2), A1**2 - C1**2 )
+    E12 = np.arctan2(-A1*B1 - C1*np.sqrt(A1**2 + B1**2 - C1**2), A1**2 - C1**2 )
+    E21 = np.arctan2(-A2*B2 + C2*np.sqrt(A2**2 + B2**2 - C2**2), A2**2 - C2**2 )
+    E22 = np.arctan2(-A2*B2 - C2*np.sqrt(A2**2 + B2**2 - C2**2), A2**2 - C2**2 )
+    
+    # Ensure each solution satisfies eq 6
+    # The solution E11+pi is also valid. Only 1 will satisfy eq 6.
+    # (Testing - valid within tolerance 1E-13)
+    E11[abs(A1*np.sin(E11)+B1*np.cos(E11)+C1) > abs(A1*np.sin(E11+np.pi)+B1*np.cos(E11+np.pi)+C1)] += np.pi
+    E12[abs(A1*np.sin(E12)+B1*np.cos(E12)+C1) > abs(A1*np.sin(E12+np.pi)+B1*np.cos(E12+np.pi)+C1)] += np.pi
+    E21[abs(A2*np.sin(E21)+B2*np.cos(E21)+C2) > abs(A2*np.sin(E21+np.pi)+B2*np.cos(E21+np.pi)+C2)] += np.pi
+    E22[abs(A2*np.sin(E22)+B2*np.cos(E22)+C2) > abs(A2*np.sin(E22+np.pi)+B2*np.cos(E22+np.pi)+C2)] += np.pi
+    
+    # Find position vectors at each of these points
+    # r1 = a1*(cos(E1) - e1)*P1 + b1*sinE1*Q1
+    r11 = (a1*(np.cos(E11) -e1))[:, np.newaxis]*P1 + (b1*np.sin(E11))[:, np.newaxis]*Q1
+    r12 = (a1*(np.cos(E12) -e1))[:, np.newaxis]*P1 + (b1*np.sin(E12))[:, np.newaxis]*Q1
+    r21 = (a2*(np.cos(E21) -e2))[:, np.newaxis]*P2 + (b2*np.sin(E21))[:, np.newaxis]*Q2
+    r22 = (a2*(np.cos(E22) -e2))[:, np.newaxis]*P2 + (b2*np.sin(E22))[:, np.newaxis]*Q2
+    
+    # New
+    
+    # Compute magnitudes
+    r11_mag = np.linalg.norm(r11, axis=-1)
+    r12_mag = np.linalg.norm(r12, axis=-1)
+    r21_mag = np.linalg.norm(r21, axis=-1)
+    r22_mag = np.linalg.norm(r22, axis=-1)
+    
+    # Compute magntiudes of transfers
+    mu = 3.986004418e5; # Gravitational parameter of Earth (km3s-2)
+    h1 = np.sqrt(mu*a1* np.abs(1. - e1**2))
+    h2 = np.sqrt(mu*a2* np.abs(1. - e2**2))
+    p1 = a1*(1. - e1**2) # Semi-latus rectum
+    p2 = a2*(1. - e2**2) # Semi-latus rectum
+    phi = np.arccos( np.einsum('ij,ij->i',H1,H2) ) # Total plane change betweeen H1, H2
+    ind = np.all(H1-H2 == 0, axis=1); phi[ind] = 0. # Fix for H1==H2
+    
+    #Find velocities at these points. Eq 4.40 of Batin
+    # v1 = -(sqrt(mu*a)/r)*sin(E)*P + (sqrt(mu*p)/r)*cos(E)*Q 
+    v11 = ( -(np.sqrt(mu*a1)/r11_mag)*np.sin(E11) )[:, np.newaxis]*P1 + ( (np.sqrt(mu*p1)/r11_mag)*np.cos(E11) )[:, np.newaxis]*Q1
+    v12 = ( -(np.sqrt(mu*a1)/r12_mag)*np.sin(E12) )[:, np.newaxis]*P1 + ( (np.sqrt(mu*p1)/r12_mag)*np.cos(E12) )[:, np.newaxis]*Q1
+    v21 = ( -(np.sqrt(mu*a2)/r21_mag)*np.sin(E21) )[:, np.newaxis]*P2 + ( (np.sqrt(mu*p2)/r21_mag)*np.cos(E21) )[:, np.newaxis]*Q2
+    v22 = ( -(np.sqrt(mu*a2)/r22_mag)*np.sin(E22) )[:, np.newaxis]*P2 + ( (np.sqrt(mu*p2)/r22_mag)*np.cos(E22) )[:, np.newaxis]*Q2
+    
+    
+    # # Determine line of nodes from H1xH2
+    # N = np.cross(H1,H2)/np.linalg.norm(np.cross(H1,H2),axis=-1)[:, np.newaxis]
+    
+    # # Compute unit vectors in r11,r12
+    # u11 = r11/r11_mag[:, np.newaxis] # r11 is aligned along +N
+    # u12 = r12/r12_mag[:, np.newaxis]
+    # u21 = r21/r21_mag[:, np.newaxis]
+    # u22 = r22/r22_mag[:, np.newaxis] # r22 is aligned along +N
+    
+    # Determine combinations of transfers
+    # (r11,r21): from +N to -N  # Check: anlge = np.arccos(np.einsum('ij,ij->i',u11,u21)) = pi
+    # (r12,r22)" from -N to +N  # Check: angle = np.arccos(np.einsum('ij,ij->i',u12,u22)) = pi
+    
+    # r11 to r21 transfer
+    r1_mag = np.linalg.norm(r11, axis=-1)
+    r2_mag = np.linalg.norm(r21, axis=-1)
+    # Compute shape of transfer orbit - Hohmann transfer from r1 to r2
+    atx = (r1_mag+r2_mag)/2 # Transfer semi-major axis
+    etx= abs((r1_mag-r2_mag)/(r1_mag+r2_mag)); # Eccentricity
+    htx = np.sqrt(mu*atx*(1-etx**2))
+    vtx1 = np.sqrt( 2*mu*(1/r1_mag - 1/(2*atx) )) # Velocity of tranfser at r1 (from vis viva equation)
+    vtx2 = np.sqrt( 2*mu*(1/r2_mag - 1/(2*atx) )) # Velocity of tranfser at r2 (from vis viva equation)
+    # vtx1 
+    # Determine orientation of htx that minimizes delta-V
+    try:
+        alpha_sol, iters = chandrupatla(f_optimal_pc,
+                              -0.01*np.ones(len(phi)),      # Min range 
+                              phi + 0.01*np.ones(len(phi)), # Max range
+                              args=(r1_mag, h1, r2_mag, h2, phi, htx),
+                              return_iter=True,
+                              )
+    except:
+        pdb.set_trace()
+    # Now compute dV
+    dH1 = np.sqrt(h1**2 + htx**2 - 2*h1*htx*np.cos(alpha_sol) )
+    dH2 = np.sqrt(h2**2 + htx**2 - 2*h2*htx*np.cos(phi-alpha_sol) ) 
+    dVH_r11_r21 = dH1/r1_mag + dH2/r2_mag # Delta=V
+    # Alternative - using velocities
+    # Eq 6.19 of Curtis
+    v1 = np.sqrt( 2*mu*(1/r1_mag - 1/(2*a1) )) # Velocity of orbit at r1
+    v1t = h1/r1_mag # Tangential velocity at r1
+    v1r = np.sqrt(v1**2 - v1t**2) # Radial velocity at r1
+    v2 = np.sqrt( 2*mu*(1/r2_mag - 1/(2*a2) )) # Velocity of orbit at r2
+    v2t = h2/r2_mag # Tangential velocity at r2
+    v2r = np.sqrt(v2**2 - v2t**2) # Radial velocity at r2
+    dV1 = np.sqrt( (0. - v1r)**2 + v1t**2 + vtx1**2 - 2*v1t*vtx1*np.cos(alpha_sol)  ) # Delta-V at r1
+    dV2 = np.sqrt( (v2r - 0.)**2 + v2t**2 + vtx2**2 - 2*v2t*vtx2*np.cos(phi-alpha_sol)  ) 
+    dV_r11_r21 = dV1 + dV2
+    # TODO: check solution
+    
+    
+    
+    # r12 to r22 transfer
+    r1_mag = np.linalg.norm(r12, axis=-1)
+    r2_mag = np.linalg.norm(r22, axis=-1)
+    # Compute shape of transfer orbit
+    atx = (r1_mag+r2_mag)/2 # Transfer semi-major axis
+    etx= abs((r1_mag-r2_mag)/(r1_mag+r2_mag)); # Eccentricity
+    htx = np.sqrt(mu*atx*(1-etx**2))
+    # Determine orientation of htx that minimizes delta-V 
+    try:
+        alpha_sol, iters = chandrupatla(f_optimal_pc,
+                              -0.01*np.ones(len(phi)),      # Min range 
+                              phi + 0.01*np.ones(len(phi)), # Max range
+                              args=(r1_mag, h1, r2_mag, h2, phi, htx),
+                              return_iter=True,
+                              )
+    except:
+        pdb.set_trace()
+    # Now compute dV
+    dH1 = np.sqrt(h1**2 + htx**2 - 2*h1*htx*np.cos(alpha_sol) )
+    dH2 = np.sqrt(h2**2 + htx**2 - 2*h2*htx*np.cos(phi-alpha_sol) ) 
+    dVH_r12_r22 = dH1/r1_mag + dH2/r2_mag # Delta=V
+    # Alternative - using velocities
+    # Eq 6.19 of Curtis
+    v1 = np.sqrt( 2*mu*(1/r1_mag - 1/(2*a1) )) # Velocity of orbit at r1
+    v1t = h1/r1_mag # Tangential velocity at r1
+    v1r = np.sqrt(v1**2 - v1t**2) # Radial velocity at r1
+    v2 = np.sqrt( 2*mu*(1/r2_mag - 1/(2*a2) )) # Velocity of orbit at r2
+    v2t = h2/r2_mag # Tangential velocity at r2
+    v2r = np.sqrt(v2**2 - v2t**2) # Radial velocity at r2
+    dV1 = np.sqrt( (0. - v1r)**2 + v1t**2 + vtx1**2 - 2*v1t*vtx1*np.cos(alpha_sol)  ) # Delta-V at r1
+    dV2 = np.sqrt( (v2r - 0.)**2 + v2t**2 + vtx2**2 - 2*v2t*vtx2*np.cos(phi-alpha_sol)  ) 
+    dV_r12_r22 = dV1 + dV2
+    
+    # # Compute minimum (using H solution)
+    # dist = dVH_r11_r21
+    # ind = dVH_r12_r22 < dVH_r11_r21
+    # dist[ind] = dVH_r12_r22[ind]
+    
+    # Compute minimum (using dV solution)
+    dist = dV_r11_r21
+    ind = dV_r12_r22 < dV_r11_r21
+    dist[ind] = dV_r12_r22[ind]
+    
+    #FIXME: review distance to self x1=x2
+    
+    return dist
+
+ 
+def f_optimal_pc(alpha, r1, h1, r2, h2, phi, htx):
+    ''' Optimal plane change angle for nodal transfer '''
+    
+    # Delta-H magnitudes
+    dH1 = np.sqrt(h1**2 + htx**2 - 2*h1*htx*np.cos(alpha) ) 
+    dH2 = np.sqrt(h2**2 + htx**2 - 2*h2*htx*np.cos(phi-alpha) ) 
+    
+    # Compute f(alpha) - necessary condition for optimality
+    # f = h1*np.sin(alpha)/(r1*dH1) - h2*np.sin(phi-alpha)/(r2*dH2) # = 0
+    # x by dH1, dH2 to avoid singularities
+    f = dH2*h1*np.sin(alpha)/(r1) - dH1*h2*np.sin(phi-alpha)/(r2) # = 0
+    
+    f[f==0]*= -1 # 
+    # Cases where dH1 = 0 or dH2 = 0
+    
+    return f
+
 
 #%% Euclidean Distance metrics ------------------------------------------------
 
@@ -315,8 +870,9 @@ def dist_mnid(x1,x2):
     # (using rmag = a(1-eCos(E)) )
     
     # Compute the semi-minor axis b
-    b1 = a1*np.sqrt(1. - e1**2)
+    b1 = a1*np.sqrt(1. - e1**2) 
     b2 = a2*np.sqrt(1. - e2**2)
+    
     
     # Compute the coefficients of the solution (eq 5)
     # Use einsum to compute dot products
@@ -796,6 +1352,8 @@ def compute_distances(df,target,searchfield='NoradId'):
     astflag = False
     if 'pdes' in df.columns:
         astflag = True
+        
+    
     
     # H-space Euclidean = f(hx1,hy1,hz1)
     x1 = np.tile(df[['hx','hy','hz']][df[searchfield]==target].iloc[0].to_numpy(), (N,1))
@@ -887,6 +1445,21 @@ def compute_distances(df,target,searchfield='NoradId'):
     # x2 = df[['hr','htheta','hphi']].to_numpy()
     # df['dHsph_mean'] = dist_h_sph_mean(x1,x2)
     
+    # Angular Momentum Derived Parameters -------------------------------------
+    
+    # Delta-V approximations
+    x1 = np.tile(df[['hx','hy','hz','a']][df[searchfield]==target].iloc[0].to_numpy(), (N,1))
+    x2 = df[['hx','hy','hz','a']].to_numpy()
+    df['dH_atx'] = dist_dH_atx(x1, x2)
+    
+    # Delta-V of Nodal transfer with optimal plane change angle
+    x1 = df[['a','e','i','om','w']][df[searchfield] == target].to_numpy()
+    x1[:,2:] = np.deg2rad(x1[:,2:]) # Convert angles to radians
+    x1 = np.repeat(x1,N,axis=0) # Duplicate
+    x2 = df[['a','e','i','om','w']].to_numpy()
+    x2[:,2:] = np.deg2rad(x2[:,2:]) # Convert angles to radians
+    df['dH_nodal'] = dist_dH_r_nodal(x1,x2)
+    
     return df
 
 def compute_pairwise_euclidean_distance(df):
@@ -925,4 +1498,31 @@ def compute_pairwise_euclidean_distance(df):
     
     return distance_matrix
 
+def compute_pairwise_nodal_distance(df, metric='dH_nodal'):
+    
+    # Check if asteroid dataset
+    astflag = False
+    if 'pdes' in df.columns:
+        astflag = True
+        
+    # dH_nodal distance = f('a','e','i','om','w')
+    # Delta-V of Nodal transfer with optimal plane change angle
+    
+    # Extract positions
+    x = df[['a','e','i','om','w']].to_numpy()
+    x[:,2:] = np.deg2rad(x[:,2:]) # Convert angles to radians
+    
+    # Extract position vectors
+    pos = x.to_numpy()
+    D = pos.shape[1] # Number of dimensions
+    N = len(df) # Get number of objects
+    
+    from scipy.spatial.distance import pdist, squareform
+    
+    distance_matrix = pdist(x, metric=dist_dh_nodal)
+
+    # Set the diagonal elements to zero
+    np.fill_diagonal(distance_matrix, 0)
+    
+    return distance_matrix
 

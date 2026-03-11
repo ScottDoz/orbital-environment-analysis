@@ -11,7 +11,9 @@ Compute Delta-Vs of optimal two-impulse transfers between pairs of satellites,
 and save data to csv. This data will be used for orbital logistics problems
 related to active debris removal.
 
-Two modes:
+Three modes:
+    BallTree: Compute a ball-tree to find all pairs of objects with dist < radius.
+              Use a simpler distance metric for the BallTree construction and query.
     1-to-N: Compute delta-Vs from the satellite to all other objects
     kNN:    Select the k nearest neighbors of the object, and compute pairwise
             delta-Vs between them (all permutations).
@@ -45,12 +47,16 @@ NOTE: This script uses multiprocessing
 >> python X4_Compute_DeltaVs.py
 
 """
-
+import sys
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from tqdm import tqdm
 import itertools
+from sklearn.neighbors import BallTree
+from scipy.spatial.distance import pdist, squareform
+from sklearn.metrics.pairwise import pairwise_distances
 
 import multiprocessing as mp
 from multiprocessing import Pool, freeze_support, RLock
@@ -58,6 +64,10 @@ import signal
 import time
 
 import pdb
+
+#FIXME: permanently add to python path
+sys.path.append(r'C:\Users\scott\Documents\Repos\orbital-environment-analysis\src')
+sys.path.append(r'C:\Users\scott\Documents\Repos\astrologistics')
 
 from OrbitalAnalysis.SatelliteData import *
 from OrbitalAnalysis.Distances import *
@@ -76,6 +86,131 @@ pd.options.mode.chained_assignment = None  # default='warn'
 np.seterr(invalid='ignore')
 
 #%% Main functions
+
+def compute_deltaVs_BallTree(radius, num_process):
+    
+    # Estimation: 2.5 to 3 hrs for radius=0.1 km/s, process=6
+    
+    # Load data
+    df = load_satellites(group='all',compute_params=True,compute_pca=True)
+    
+    # Extract positions for dH_atx
+    X = df[['hx','hy','hz','a']].to_numpy()
+
+    # Build the Ball tree
+    # leaf_size: Higher values make construction faster but query slower
+    t0 = time.perf_counter()
+    # tree = BallTree(X, leaf_size=40, metric=dist_dH_r_nodal)
+    tree = BallTree(X, leaf_size=10, metric=dist_dH_atx)
+    print("BallTree build time = {} s".format(str(time.perf_counter() - t0)) )
+    
+    # Query BallTree. Find all points within radius km/s
+    # Note: initial query is 2*radius to make sure we dont miss any
+    t0 = time.perf_counter()
+    indices, dist = tree.query_radius(X, r=radius*2, return_distance=True)
+    print("BallTree query time = {} s".format(str(time.perf_counter() - t0)) )
+    
+    # Get source and target ids
+    target_list = [item for sublist in indices for item in sublist]
+    source_list = [item for i, sublist in enumerate(indices) for item in itertools.repeat(i, times=len(sublist))]
+    # Get NoradIds of source and targets
+    from_norad = df['NoradId'].loc[source_list].to_list()
+    to_norad = df['NoradId'].loc[target_list].to_list()
+    
+    
+    # Create Edge List
+    dfedges = pd.DataFrame(columns=['from_norad','to_norad','dist','dH_nodal'])
+    dfedges.from_norad = from_norad
+    dfedges.to_norad = to_norad
+    dfedges.dist = [item for sublist in dist for item in sublist]
+    # Drop self-edges and update
+    dfedges = dfedges[~(dfedges['from_norad'] == dfedges['to_norad'])] # Drop self-edges
+    from_norad = dfedges.from_norad.to_list()
+    to_norad = dfedges.to_norad.to_list()
+    # Add orbital properties of from_norad
+    dfedges = pd.merge(dfedges,df[['NoradId','a','e','i','om','w','hx','hy','hz']],how='left', left_on='from_norad', right_on='NoradId' ).drop(columns='NoradId')
+    dfedges = dfedges.rename(columns = {'a':'a1','e':'e1','i':'i1','om':'om1','w':'w1','hx':'hx1','hy':'hy1','hz':'hz1'}) # Rename columns
+    # Add orbital properties of to_norad
+    dfedges = pd.merge(dfedges,df[['NoradId','a','e','i','om','w','hx','hy','hz']],how='left', left_on='to_norad', right_on='NoradId' ).drop(columns='NoradId')
+    dfedges = dfedges.rename(columns = {'a':'a2','e':'e2','i':'i2','om':'om2','w':'w2','hx':'hx2','hy':'hy2','hz':'hz2'}) # Rename columns
+    
+    # Compute Distance Metrics for each edge
+    # Nodal Transfer distance (better approx)
+    x1 = dfedges[['a1','e1','i1','om1','w1']].to_numpy()
+    x1[:,2:] = np.deg2rad(x1[:,2:]) # Convert angles to radians
+    x2 = dfedges[['a2','e2','i2','om2','w2']].to_numpy()
+    x2[:,2:] = np.deg2rad(x2[:,2:]) # Convert angles to radians
+    t0 = time.perf_counter()
+    dfedges['dH_nodal'] = dist_dH_r_nodal(x1,x2)
+    print("dH_nodal comp time = {} s".format(str(time.perf_counter() - t0)) )
+    
+    # Limit edge list to dH_nodal<radius
+    dfedges = dfedges[dfedges.dH_nodal<=radius].reset_index(drop=True)
+    
+    
+    # Compare to objects already computed
+    dfdone1 = pd.read_csv(r"C:\Users\scott\satellite_data\Data\Delta-Vs\deltaVs_BallTree_rad_0.1_full.csv")
+    dfdone2 = pd.read_csv(r"C:\Users\scott\satellite_data\Data\Delta-Vs\deltaVs_BallTree_rad_0.2_full.csv")
+    dfdone = pd.concat([dfdone1, dfdone2], ignore_index=True)
+    dfedges = pd.concat([dfedges, dfdone]).drop_duplicates(subset=['from_norad','to_norad'], keep=False).reset_index(drop=True) # Yet to be computed
+    # This difference has previous radius < dH_nodal < radius
+    
+    
+    # edge_list = list(zip(from_norad, to_norad))
+    
+    # FIXME: Limit size for testing
+    # dfedges = dfedges.iloc[:200000]        # Done - 27:13 |26:06 | 24:04
+    # dfedges = dfedges.iloc[200000:400000]  # Done - 28:53 | 26:45 | 23:53
+    # dfedges = dfedges.iloc[400000:600000]  # Done - 28:50 | 25:39 | 24:25
+    dfedges = dfedges.iloc[600000:800000]        # Done - 20:50 | 19:24     (with other apps running)
+    # dfedges = dfedges.iloc[700000:] # Done - 14:53
+    
+    
+    # Extract coordinates of source and target
+    x1 = dfedges[['a1','e1','i1','om1','w1']].to_numpy()
+    x1[:,2:] = np.deg2rad(x1[:,2:]) # Convert angles to radians
+    x2 = dfedges[['a2','e2','i2','om2','w2']].to_numpy()
+    x2[:,2:] = np.deg2rad(x2[:,2:]) # Convert angles to radians
+    
+    # Extract arguments list
+    # Zip together into argument list
+    # argument_list = [(a1i,e1i,i1i,om1i,w1i,a2i,e2i,i2i,om2i,w2i) for a1i,e1i,i1i,om1i,w1i,a2i,e2i,i2i,om2i,w2i in zip(a1,e1,i1,om1,w1,a2,e2,i2,om2,w2) ]
+    x = np.hstack((x1, x2))
+    argument_list = [tuple(xi) for xi in x ]
+    from_norad = dfedges.from_norad.to_list()
+    to_norad = dfedges.to_norad.to_list()
+    
+
+    # Print out
+    print('\nRunning Combinatorial Delta-V Calculations \n\n')
+    print('kNN mode: Compute pairwise delta-Vs from BallTree results')
+    print('BallTree radius = {} km/s'.format(radius))
+    print('Number of combinations: {}'.format(str(len(argument_list))))
+    print('Number of cores: {} \n'.format(str(num_processes)))
+    
+    # Task 1: 
+    # Runtime ~39 mins
+    t0 = time.time() # Start timer
+    result = control_task1(num_processes,argument_list)
+    t1 = time.time()
+    print('Runtime {} min\n\n'.format((t1-t0)/60.))
+    
+    # Add result to dataframe
+    dfedges['dV'] = result
+    
+    # Get data directory
+    DATA_DIR = get_data_home()
+    _dir = DATA_DIR/'Delta-Vs' # Save directory
+    _dir.mkdir(parents=True, exist_ok=True) # Create path if doesn't exist
+    
+    # Save data
+    filename = str(_dir/'deltaVs_BallTree_rad_{}.csv'.format(radius))
+    dfedges.to_csv(filename,index=False)
+    
+    print('Data saved to {}'.format(filename))
+    
+    
+    return
 
 def compute_deltaVs_1toN(target,num_processes,mp_method=1):
     '''
@@ -109,6 +244,7 @@ def compute_deltaVs_1toN(target,num_processes,mp_method=1):
         # 1. Create argument list
         argument_list, from_norad, to_norad = create_arg_list1(df,target,'1-to-N',k=None)
         del df # Free up memory
+        pdb.set_trace()
         
         # Print out
         print('\nRunning Combinatorial Delta-V Calculations \n\n')
@@ -218,7 +354,7 @@ def compute_deltaVs_kNN(target,num_processes,mp_method=1,k=100,):
 #%% Multiprocessing implementation
 # Method 1
 # Create a single list of tasks to perform, and use n processors to do it.
-# Tested: ~ 40 mins to run
+# Tested: ~ 40 mins to run for 28,000 pairs
     
 # Function to allow handling of KeyboardInterupt
 def initializer():
@@ -310,6 +446,10 @@ def func_task1(a1,e1,i1,om1,w1,a2,e2,i2,om2,w2, *args, **kwargs):
     result = solve_OrbitToOrbit_mccue(orb1,orb2,mu,solver='Grid')
     dV = result.fun
     
+    # TODO: Extract other characteristics of solution
+    # (r1,th1), (r2,th2) # Locations of impulses in initial and final orbits
+    # dV1n, dV1t # Normal and tangential components of 1st impulse
+    # dV2n, dV2t # Normal and tangential components of 2nd impulse
     
     return dV
     
@@ -561,26 +701,32 @@ def create_arg_list2(num_processors):
 
 if __name__ == "__main__":
     
-    # Select target
-    # target = 25544 # ISS
-    target = 22675 # Cosmos 2251 *
-    # target = 13552 # Cosmos 1408 *
-    # target = 25730 # Fengyun 1C *
-    # target = 40271 # Intelsat 30 (GEO)
-    # target = 49445 # Atlas 5 Centaur DEB
-    
-    # Mode inputs (Select only 1. Comment out the other.)
-    # mode = '1-to-N'     # Caluculate delta-Vs from target to all other objects
-    mode, k = 'kNN', 100 # Caluculate delta-Vs from between k nearest neighbors of target
-    
     # Processor inputs
-    num_processes = 6 # Number of parallel cores to use
+    num_avail_cpus = os.cpu_count() # 22 cpus 
+    num_processes = 20 # Number of parallel cores to use 22
     
-    if mode == '1-to-N':
-        # # Caluculate delta-Vs from target to all other objects
-        compute_deltaVs_1toN(target,num_processes,mp_method=1)
-    elif mode == 'kNN':
-        # Caluculate delta-Vs from between k nearest neighbors of target
-        compute_deltaVs_kNN(target,num_processes,k=k,mp_method=1)
+    # BallTree (all pairs)
+    radius = 0.3
+    compute_deltaVs_BallTree(radius, num_processes)
+    
+    
+    # # Select target
+    # # target = 25544 # ISS
+    # # target = 22675 # Cosmos 2251 *
+    # # target = 13552 # Cosmos 1408 *
+    # # target = 25730 # Fengyun 1C *
+    # target = 40271 # Intelssat 30 (GEO)
+    # # target = 49445 # Atlas 5 Centaur DEB
+    
+    # # Mode inputs (Select only 1. Comment out the other.)
+    # mode = '1-to-N'     # Caluculate delta-Vs from target to all other objects
+    # # mode, k = 'kNN', 100 # Caluculate delta-Vs from between k nearest neighbors of target
+    
+    # if mode == '1-to-N':
+    #     # # Caluculate delta-Vs from target to all other objects
+    #     compute_deltaVs_1toN(target,num_processes,mp_method=1)
+    # elif mode == 'kNN':
+    #     # Caluculate delta-Vs from between k nearest neighbors of target
+    #     compute_deltaVs_kNN(target,num_processes,k=k,mp_method=1)
 
 
