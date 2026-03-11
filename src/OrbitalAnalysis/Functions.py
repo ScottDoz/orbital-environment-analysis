@@ -885,12 +885,19 @@ def coe_from_sv(R,V,mu=1.32712440018E11,units='km'):
     i = np.arccos(H[:,2]/h)
 
     # Line of nodes
-    N = np.cross(np.tile(np.array([0,0,1]),(len(R),1)),H) # N = H x K
+    N = np.cross(np.tile(np.array([0,0,1]),(len(R),1)),H) # N = K x H
     n = np.linalg.norm(N,axis=-1) # Magnitude
     # Define default direction for circular orbits
     ind = n==0
     N[ind,:] = np.array([1,0,0])
     n[ind] = 1.
+    
+    # Eccentricity vector
+    ecc = ( (v**2 - mu/r)[:, np.newaxis]*R - (r*vr)[:, np.newaxis]*V )/mu # Vector
+    e = np.linalg.norm(ecc,axis=-1) # Eccentricity
+    # ecc = (1/mu)*( (v**2 - mu/r)*R - r*vr*V ) # Vector
+    # e = np.linalg.norm(ecc) # Eccentricity
+    
     
     # Ascending node om
     om = np.zeros(len(R)) # Initialize to zero
@@ -907,30 +914,17 @@ def coe_from_sv(R,V,mu=1.32712440018E11,units='km'):
     # else:
     #     om = 0.
     
-    # Eccentricity vector
-    ecc = ( (v**2 - mu/r)[:, np.newaxis]*R - (r*vr)[:, np.newaxis]*V )/mu # Vector
-    e = np.linalg.norm(ecc,axis=-1) # Eccentricity
-    # ecc = (1/mu)*( (v**2 - mu/r)*R - r*vr*V ) # Vector
-    # e = np.linalg.norm(ecc) # Eccentricity
     
     # Argument of periapsis
     w = np.zeros(len(R)) # Initialize to zero
     ind = e > eps
-    w[ind] = np.arccos(np.einsum('ij,ij->i',N[ind,:],ecc[ind,:])/(n[ind]*e[ind])) 
-    # Quadrant check
-    # ecc_z = ecc[:,2] # z component of ecc vector
-    w[(e>eps) & (ecc[:,2]<0)] = 2*np.pi - om[(e>eps) & (ecc[:,2]<0)]
-    # if n != 0.:
-    #     if e > eps:
-    #         w = np.arccos(np.dot(N,ecc)/(n*e))
-    #         # Quadrant check using k component of ecc vector
-    #         if ecc[2] < 0.:
-    #             # 180 < w < 360 deg
-    #             w = 2*np.pi - w
-    #     else:
-    #         w = 0.
-    # else:
-    #     w = 0.
+    # Alternative method using atan2: w = atan2( (Nxe).H/(nhe), N.e/(ne) )
+    NxE = np.cross(N[ind,:], ecc[ind,:])
+    sinw = np.einsum('ij,ij->i', NxE, H[ind,:])/(n[ind]*h[ind]*e[ind]) # (Nxe).H/(nhe)
+    cosw = np.einsum('ij,ij->i', N[ind,:], ecc[ind,:]) / (n[ind] * e[ind]) # N.e/(ne)
+    cosw = np.clip(cosw, -1.0, 1.0) # clip to [-1,1] to avoid floating point errors
+    w[ind] = np.arctan2(sinw, cosw) # Avoid quadrant check by using arctan2 instead of arccos
+    w[ind] = np.mod(w[ind], 2*np.pi) # wrap to [0, 2π]
     
     # True anomaly
     TA = np.zeros(len(R))*np.nan # Initialize
