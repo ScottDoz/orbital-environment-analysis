@@ -88,6 +88,24 @@ np.seterr(invalid='ignore')
 #%% Main functions
 
 def compute_deltaVs_BallTree(radius, num_process):
+    '''
+    Use a BallTree with a simple distance metric e.g. dist_dH_atx as an initial
+    guess to get all pair-wise connections between satellites with distance
+    less than a specific radius. 
+    For each connection, 
+
+    Parameters
+    ----------
+    radius : TYPE
+        DESCRIPTION.
+    num_process : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    None.
+
+    '''
     
     # Estimation: 2.5 to 3 hrs for radius=0.1 km/s, process=6
     
@@ -209,145 +227,6 @@ def compute_deltaVs_BallTree(radius, num_process):
     
     print('Data saved to {}'.format(filename))
     
-    
-    return
-
-def compute_deltaVs_1toN(target,num_processes,mp_method=1):
-    '''
-    Compute delta-Vs from a single target to all other objects.
-    
-    Saves results as a csv with columns 'to_norad' and 'dV'
-
-    Parameters
-    ----------
-    target : TYPE
-        DESCRIPTION.
-
-    Returns
-    -------
-    None.
-
-    '''
-    
-    # Load data
-    df = load_satellites(group='all',compute_params=True,compute_pca=True)
-    # df = load_2019_experiment_data([36]) # New dataset
-    
-    # Convert angles to radians
-    df['i'] = np.deg2rad(df['i'])
-    df['om'] = np.deg2rad(df['om'])
-    df['w'] = np.deg2rad(df['w'])
-    
-    if mp_method == 1:
-        # Multiprocessing method 1.
-        
-        # 1. Create argument list
-        argument_list, from_norad, to_norad = create_arg_list1(df,target,'1-to-N',k=None)
-        del df # Free up memory
-        pdb.set_trace()
-        
-        # Print out
-        print('\nRunning Combinatorial Delta-V Calculations \n\n')
-        print('1-to-N mode: Compute delta-Vs from taget body to all others')
-        print('Central body NoradID = {}'.format(target))
-        print('Number of combinations: {}'.format(str(len(argument_list))))
-        print('Number of cores: {} \n'.format(str(num_processes)))
-        
-        # Task 1: 
-        # Runtime ~39 mins
-        t0 = time.time() # Start timer
-        result = control_task1(num_processes,argument_list)
-        t1 = time.time()
-        print('Runtime {} min\n\n'.format((t1-t0)/60.))
-    
-    # Construct results dataframe
-    res = pd.DataFrame(columns=['from_norad','to_norad','dV'])
-    # Fill in to and from NoradIds
-    res['from_norad'] = from_norad
-    res['to_norad'] = to_norad
-    
-    # Add result to dataframe
-    res['dV'] = result
-    
-    # Get data directory
-    DATA_DIR = get_data_home()
-    _dir = DATA_DIR/'Delta-Vs' # Save directory
-    _dir.mkdir(parents=True, exist_ok=True) # Create path if doesn't exist
-    
-    # Save data
-    filename = str(_dir/'deltaVs_1-to-N_from_norad_{}.csv'.format(target))
-    res = res[['to_norad','dV']]
-    res.to_csv(filename,index=False)
-    
-    print('Data saved to {}'.format(filename))
-    
-    return
-
-def compute_deltaVs_kNN(target,num_processes,mp_method=1,k=100,):
-    '''
-    Compute delta-Vs from a single target to k nearest neighbors
-
-    Parameters
-    ----------
-    target : TYPE
-        DESCRIPTION.
-
-    Returns
-    -------
-    None.
-
-    '''
-    
-    # Load data
-    df = load_satellites(group='all',compute_params=True,compute_pca=True)
-    # df = load_2019_experiment_data([36]) # New dataset
-    
-    # Convert angles to radians
-    df['i'] = np.deg2rad(df['i'])
-    df['om'] = np.deg2rad(df['om'])
-    df['w'] = np.deg2rad(df['w'])
-    
-    if mp_method == 1:
-        # Multiprocessing method 1.
-        
-        # 1. Create argument list
-        argument_list, from_norad, to_norad = create_arg_list1(df,target,'N-to-N',k=k)
-        
-        # Print out
-        print('\nRunning Combinatorial Delta-V Calculations \n\n')
-        print('kNN mode: Compute pairwise delta-Vs between k nearest neighbors of central body')
-        print('Central body NoradID = {}'.format(target))
-        print('k = {}'.format(k))
-        print('Number of combinations: {}'.format(str(len(argument_list))))
-        print('Number of cores: {} \n'.format(str(num_processes)))
-        
-        
-        # Task 1: 
-        # Runtime ~39 mins
-        t0 = time.time() # Start timer
-        result = control_task1(num_processes,argument_list)
-        t1 = time.time()
-        print('Runtime {} min\n\n'.format((t1-t0)/60.))
-    
-    # Construct results dataframe
-    res = pd.DataFrame(columns=['from_norad','to_norad','dV'])
-    # Fill in to and from NoradIds
-    res['from_norad'] = from_norad
-    res['to_norad'] = to_norad
-    
-    # Add result to dataframe
-    res['dV'] = result
-    
-    # Get data directory
-    DATA_DIR = get_data_home()
-    _dir = DATA_DIR/'Delta-Vs' # Save directory
-    _dir.mkdir(parents=True, exist_ok=True) # Create path if doesn't exist
-    
-    # Save data
-    filename = str(_dir/'deltaVs_N-to-N_kNN_{k}_around_norad_{target}.csv'.format(k=k,target=target))
-    res.to_csv(filename,index=False)
-    
-    print('Data saved to {}'.format(filename))
     
     return
 
@@ -549,6 +428,148 @@ def create_arg_list1(df,target,prob_type,k=100):
     argument_list = [(a1i,e1i,i1i,om1i,w1i,a2i,e2i,i2i,om2i,w2i) for a1i,e1i,i1i,om1i,w1i,a2i,e2i,i2i,om2i,w2i in zip(a1,e1,i1,om1,w1,a2,e2,i2,om2,w2) ]
     
     return argument_list, from_norad, to_norad
+
+#%% 
+
+def compute_deltaVs_1toN(target,num_processes,mp_method=1):
+    '''
+    Compute delta-Vs from a single target to all other objects.
+    
+    Saves results as a csv with columns 'to_norad' and 'dV'
+
+    Parameters
+    ----------
+    target : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    None.
+
+    '''
+    
+    # Load data
+    df = load_satellites(group='all',compute_params=True,compute_pca=True)
+    # df = load_2019_experiment_data([36]) # New dataset
+    
+    # Convert angles to radians
+    df['i'] = np.deg2rad(df['i'])
+    df['om'] = np.deg2rad(df['om'])
+    df['w'] = np.deg2rad(df['w'])
+    
+    if mp_method == 1:
+        # Multiprocessing method 1.
+        
+        # 1. Create argument list
+        argument_list, from_norad, to_norad = create_arg_list1(df,target,'1-to-N',k=None)
+        del df # Free up memory
+        pdb.set_trace()
+        
+        # Print out
+        print('\nRunning Combinatorial Delta-V Calculations \n\n')
+        print('1-to-N mode: Compute delta-Vs from taget body to all others')
+        print('Central body NoradID = {}'.format(target))
+        print('Number of combinations: {}'.format(str(len(argument_list))))
+        print('Number of cores: {} \n'.format(str(num_processes)))
+        
+        # Task 1: 
+        # Runtime ~39 mins
+        t0 = time.time() # Start timer
+        result = control_task1(num_processes,argument_list)
+        t1 = time.time()
+        print('Runtime {} min\n\n'.format((t1-t0)/60.))
+    
+    # Construct results dataframe
+    res = pd.DataFrame(columns=['from_norad','to_norad','dV'])
+    # Fill in to and from NoradIds
+    res['from_norad'] = from_norad
+    res['to_norad'] = to_norad
+    
+    # Add result to dataframe
+    res['dV'] = result
+    
+    # Get data directory
+    DATA_DIR = get_data_home()
+    _dir = DATA_DIR/'Delta-Vs' # Save directory
+    _dir.mkdir(parents=True, exist_ok=True) # Create path if doesn't exist
+    
+    # Save data
+    filename = str(_dir/'deltaVs_1-to-N_from_norad_{}.csv'.format(target))
+    res = res[['to_norad','dV']]
+    res.to_csv(filename,index=False)
+    
+    print('Data saved to {}'.format(filename))
+    
+    return
+
+def compute_deltaVs_kNN(target,num_processes,mp_method=1,k=100,):
+    '''
+    Compute delta-Vs from a single target to k nearest neighbors
+
+    Parameters
+    ----------
+    target : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    None.
+
+    '''
+    
+    # Load data
+    df = load_satellites(group='all',compute_params=True,compute_pca=True)
+    # df = load_2019_experiment_data([36]) # New dataset
+    
+    # Convert angles to radians
+    df['i'] = np.deg2rad(df['i'])
+    df['om'] = np.deg2rad(df['om'])
+    df['w'] = np.deg2rad(df['w'])
+    
+    if mp_method == 1:
+        # Multiprocessing method 1.
+        
+        # 1. Create argument list
+        argument_list, from_norad, to_norad = create_arg_list1(df,target,'N-to-N',k=k)
+        
+        # Print out
+        print('\nRunning Combinatorial Delta-V Calculations \n\n')
+        print('kNN mode: Compute pairwise delta-Vs between k nearest neighbors of central body')
+        print('Central body NoradID = {}'.format(target))
+        print('k = {}'.format(k))
+        print('Number of combinations: {}'.format(str(len(argument_list))))
+        print('Number of cores: {} \n'.format(str(num_processes)))
+        
+        
+        # Task 1: 
+        # Runtime ~39 mins
+        t0 = time.time() # Start timer
+        result = control_task1(num_processes,argument_list)
+        t1 = time.time()
+        print('Runtime {} min\n\n'.format((t1-t0)/60.))
+    
+    # Construct results dataframe
+    res = pd.DataFrame(columns=['from_norad','to_norad','dV'])
+    # Fill in to and from NoradIds
+    res['from_norad'] = from_norad
+    res['to_norad'] = to_norad
+    
+    # Add result to dataframe
+    res['dV'] = result
+    
+    # Get data directory
+    DATA_DIR = get_data_home()
+    _dir = DATA_DIR/'Delta-Vs' # Save directory
+    _dir.mkdir(parents=True, exist_ok=True) # Create path if doesn't exist
+    
+    # Save data
+    filename = str(_dir/'deltaVs_N-to-N_kNN_{k}_around_norad_{target}.csv'.format(k=k,target=target))
+    res.to_csv(filename,index=False)
+    
+    print('Data saved to {}'.format(filename))
+    
+    return
+
 
 #%% Method 2
     
