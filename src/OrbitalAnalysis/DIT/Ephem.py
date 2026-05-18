@@ -22,7 +22,7 @@ import shutil
 import textwrap
 from astropy.time import Time as Time
 import spiceypy as spice
-from sgp4.api import Satrec
+from sgp4.api import Satrec, WGS72
 
 
 import time
@@ -690,15 +690,60 @@ def create_satellite_ephem(sat,start_et,stop_et,step,method='tle'):
     # Get ephemeris
     if method.lower() in ['sgp4']:
         # SGP4 Propagator. From satellite TLE
-        from SatelliteData import get_tle
+        from OrbitalAnalysis.SatelliteData import get_tle
         
-        # Get TLEs for the object
-        tle_lines = get_tle(sat,tle_type='tle')
-        l1 = tle_lines[0] # Line 1
-        l2 = tle_lines[1] # Line 2
+        # Extract data
+        epoch = spice.timout(start_et,pictur='YYYY MON DD HR:MN:SC.#')
+        start = spice.timout(start_et,pictur='YYYY MON DD')
+        stop = spice.timout(stop_et,pictur='YYYY MON DD')
+        a = sat['SMA']   # 
+        ECC = sat['ECC'] # Eccentricty
+        INC = sat['INC'] # Inclination (deg)
+        LNODE = sat['RAAN'] # Longitude of ascending node
+        ARGP = sat['AOP'] # Argument of periapsis (deg)
+        M0 = 0. # Mean anomaly at epoch (deg) #FIXME: add check for M0, t0 
         
-        # Create object
-        satellite = Satrec.twoline2rv(l1, l2)
+        
+        if isinstance(sat, (int, float)):
+            # Defined as NORAD id
+            
+            # Get TLEs for the object
+            tle_lines = get_tle(sat,tle_type='tle')
+            l1 = tle_lines[0] # Line 1
+            l2 = tle_lines[1] # Line 2
+            
+            # Create object
+            satellite = Satrec.twoline2rv(l1, l2)
+        
+        elif isinstance(sat, dict):
+            # Defined as dictionary
+            
+            # Instantiate Satrec object
+            satellite = Satrec()
+            satnum = 99999 # Norad Id
+            
+            mu = 398600.4354360959 # Gravitational parameter of Earth (km^3/s^2)
+            
+            start_jd = float(spice.timout(start_et,'JULIAND.#############')) # Julian date
+            bstar = 0.0001           # B* drag term (1/earth radii)
+            ndot = 0.0;              # ndot: ballistic coefficient First time derivative (radians/minute^2)
+            nddot = 0.0              # mean motion 2nd time derivative (ignored by SGP4) (radians/minute^3)
+            n = np.sqrt(mu/sat['SMA']**3) # Mean motion (rad/s)
+            
+            
+            # Load elements into the record
+            # Arguments: gravity model, 'i' (improved mode), satnum, epoch-1950, 
+            # bstar, ndot, nddot, ecco, argpo, inclo, mo, no_kozai, nodeo
+            satellite.sgp4init(
+                WGS72, 'i', satnum, start_jd - 2433281.5, bstar, 
+                ndot, nddot, 
+                ECC,  # Eccentricity
+                np.deg2rad(ARGP), # Argument of periapsis (rad) 
+                np.deg2rad(INC),  # Inclination (rad)
+                0., # Mean anaomaly (rad) 
+                n*60,  # no_kozai: mean motion (radians/minute)
+                np.deg2rad(LNODE), # R.A. of ascending node (radians 0..2pi
+            )            
         
         # Create array of epochs
         et = np.arange(start_et,stop_et,step)    # Ephemeris time
@@ -710,7 +755,83 @@ def create_satellite_ephem(sat,start_et,stop_et,step,method='tle'):
         e, r, v = satellite.sgp4_array(jd_whole, jd_frac)
         # e is error flag - non-zero for errors
         
-        # TODO: Finish
+        # Generate input data file
+        data_template = """
+                    Test: 99999 relative to 399 in frame J2000. GM= 398600.4354360959
+                    JD, R, V
+                    ---------------------------------
+                    {epoch}
+                    ?{A} {R} {V}
+                     """
+        data_template = textwrap.dedent(data_template) # Remove formating indents
+        data_template = data_template.replace('?', ' ') # Replace
+        
+        # Format the template file and write
+        infile = kernel_dir/'sat_input.txt'
+        print('Writing input file {}'.format(str(infile)), flush=True)
+        with  open(infile,'w') as myfile:
+            
+            # Write header
+            myfile.write('Test: 99999 relative to 399 in frame J2000. GM= 398600.4354360959' + '\n')
+            myfile.write('JD, R, V' + '\n')
+            myfile.write('--------' + '\n')
+            
+            # Write epoch data
+            for i in range(len(et)):
+                # myfile.write(spice.timout(et[i],pictur='YYYY MON DD HR:MN:SC.#') + '\n') # Epoch
+                myfile.write(str(et[i]) + '\n') # Epoch
+                myfile.write(' {R} {V} \n'.format(**{"R":" ".join(r[i].astype(str)),
+                                                     "V":" ".join(v[i].astype(str)),
+                                                     } ))
+            
+        # Create setup file for mkspk
+        template = """
+                    \\begindata
+                    ?INPUT_DATA_TYPE   = 'STATES'
+                    ?OUTPUT_SPK_TYPE   = 5
+                    ?OBJECT_ID         = 99999
+                    ?OBJECT_NAME       = 'Target'
+                    ?CENTER_ID         = 399
+                    ?CENTER_NAME       = 'EARTH'
+                    ?REF_FRAME_NAME    = 'J2000'
+                    ?PRODUCER_ID       = 'Scott Dorrington, MIT'
+                    ?DATA_ORDER        = 'EPOCH X Y Z VX VY VZ'
+                    ?TIME_WRAPPER      = '# ETSECONDS'
+                    ?INPUT_DATA_UNITS  = ('ANGLES=DEGREES' 'DISTANCES=km')
+                    ?DATA_DELIMITER    = ' '
+                    ?LINES_PER_RECORD  = 2
+                    ?IGNORE_FIRST_LINE = 3
+                    ?LEAPSECONDS_FILE  = 'naif0012.tls'
+                    ?PCK_FILE          = 'gm_de431.tpc'
+                    ?SEGMENT_ID        = 'SPK_STATES_05'
+                    \\begintext
+                    """
+        template = textwrap.dedent(template) # Remove formating indents
+        template = template.replace('?', '   ') # Replace
+        # Format the template file and write
+        defs_filename = kernel_dir/'sat_setup.txt'
+        print('Writing setup file {}'.format(str(defs_filename)), flush=True)
+        with  open(defs_filename,'w') as myfile:
+            myfile.write(template.format(**{ "start":start,"stop":stop} ))
+        
+        # Define output spk file
+        outfile = kernel_dir/'sat.bsp'
+        if outfile.exists():
+            # If file exists, delete it.
+            spice.kclear() # Clear all loaded kernels
+            outfile.unlink()
+        
+        # Run the mkspk
+        print('Making spk file with MKSPK.exe', flush=True)
+        shdir = kernel_dir # Directory to run from
+        cmd = 'mkspk -setup {setupfile} -input {infile} -output {outfile}'.format(**{'setupfile':defs_filename.name,'infile':str(infile), 'outfile':str(outfile) }) # Command to execute
+        result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, cwd=shdir)
+        msg = result.stdout.decode("utf-8") # Error message
+        
+        # Print any errors
+        if msg != '':
+            print(msg, flush=True)
+        
         
     elif method.lower() in ['tle']:
         # MKSPK TL_Elements option
@@ -788,7 +909,7 @@ def create_satellite_ephem(sat,start_et,stop_et,step,method='tle'):
         INC = sat['INC'] # Inclination (deg)
         LNODE = sat['RAAN'] # Longitude of ascending node
         ARGP = sat['AOP'] # Argument of periapsis (deg)
-        M0 = 0. # Mean anomaly at epoch (deg)
+        M0 = 0. # Mean anomaly at epoch (deg) #FIXME: add check for M0, t0 
         
         # Get gravitiational constant of Earth
         spice.furnsh( str(kernel_dir/'gm_de431.tpc') ) # Gravity constants for planets
@@ -1396,10 +1517,6 @@ def get_ephem_TOPO(et,groundstations=['DSS-43'], sat_ephem=None):
         
         # Add to dataframe
         df['Sat.alpha'] = alpha
-        
-        # Visual magnitude
-        
-        
         
         
         
