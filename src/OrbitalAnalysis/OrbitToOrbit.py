@@ -286,8 +286,42 @@ class OrbitToOrbitProblem:
         err = np.max(np.abs(r2f - r2))
         assert np.max(err) < 1e-5, f"Position transform error = {err}"
         
+        # Transfer characteristics --------------------------------------------      
+
+        # Compute delta-Vs
+        dV1 = np.linalg.norm(I1,axis=-1) # Delta-V 1
+        dV2 = np.linalg.norm(I2,axis=-1) # Delta-V 2
         
+        # Find the time of flight of transfer
+        # Find mean anomally of r1 and r2 in transfer orbit
+        MAtx1 = float(TA_to_M(TAtx1,etx)) # Mean anomaly at r1
+        MAtx2 = float(TA_to_M(TAtx2,etx)) # Mean anomaly at r2
+        # Ensure MAtx2>MAtx1
+        if MAtx2 < MAtx1:
+            MAtx2 += 2*np.pi
         
+        # Find time since periapsis passage of both locations
+        # M = (2π/T)*t  ->  t = M*(T/(2π))
+        Ttx = 2*np.pi*np.sqrt(atx**3/mu)
+        tsptx1 = MAtx1*Ttx/(2*np.pi) # Time since periapsis in tx orbit
+        tsptx2 = MAtx2*Ttx/(2*np.pi) # Time since periapsis in tx orbit
+        tof = tsptx2-tsptx1
+        if tof<0:
+            pdb.set_trace()
+        
+        # # Find location and times of departure burn in orbit 1
+        # _,_,_,_,_,TA1 = coe_from_sv(r1,v1,mu=mu,units='km') # Departure orbit
+        # pdb.set_trace()
+        
+        # Time of departure burn in orbit 1
+        M1 = TA_to_M(TA1,self.ei)   # Mean anomaly of departure point
+        tsp1 = M1*2*np.pi*np.sqrt(self.ai**3/mu)/(2*np.pi) # Time since periapsis of orbit 1
+        
+        # Time of arrival burn in orbit 2
+        M2 = TA_to_M(TA2,self.ef)   # Mean anomaly of arrival point
+        tsp2 = M2*2*np.pi*np.sqrt(self.af**3/mu)/(2*np.pi) # Time since periapsis of orbit 1
+        
+
         # Append solution
         result = self.result # Get original solution
         result.txorb = {'a':atx, 'e':etx, 'i':itx, 'om':omtx, 'w':wtx, 'TA1':TAtx1, 'TA2':TAtx2}
@@ -299,6 +333,13 @@ class OrbitToOrbitProblem:
         result.vtx2 = vtx2
         result.I1 = I1
         result.I2 = I2
+        # Transfer characteristics
+        result.dV1 = dV1
+        result.dV2 = dV2
+        result.dV_tot = dV1 + dV2
+        result.tof = tof
+        result.tsp1 = tsp1
+        result.tsp2 = tsp2
         
         # Override result attribute
         self.result = result
