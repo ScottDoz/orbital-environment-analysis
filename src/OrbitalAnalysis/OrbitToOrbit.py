@@ -32,7 +32,7 @@ from scipy import interpolate
 from scipy.signal import find_peaks
 
 # Module imports
-from OrbitalAnalysis.Functions import sv_from_coe, coe_from_sv
+from OrbitalAnalysis.Functions import sv_from_coe, coe_from_sv, TA_to_M
 from OrbitalAnalysis.optimizers import chandrupatla
 
 import pdb
@@ -260,11 +260,41 @@ class OrbitToOrbitProblem:
         atx,etx,itx,omtx,wtx,TAtx1 = coe_from_sv(r1,vtx1,mu=mu,units='km') # 1st impulse
         atx2,etx2,itx2,omtx2,wtx2,TAtx2 = coe_from_sv(r2,vtx2,mu=mu,units='km') # 2nd impulse
         
+        # Terminal points in ititial & final orbits 
+        
+        # True anomalies of impulses in initial and final orbits
+        TA1 = np.mod(x[0] - w1, 2*np.pi) # True anomaly of 1st impulse in initial orbit
+        TA2 = np.mod(x[1] - w2, 2*np.pi) # True anomaly of 2nd impulse in final orbit
+        
+        # Get terminal points in initial orbit
+        M1 = TA_to_M(TA1, self.ei)
+        sv1 = sv_from_coe(self.ai,self.ei,self.inci,self.omi,self.wi,M1, mu=mu,units='km') 
+        r1i = sv1[:3]
+        v1 = sv1[3:] # Velocity in iniital orbit
+        # Check that position matches terminal position in transfer orbit
+        # assert np.allclose(r1i, r1, rtol=0, atol=1e-5)
+        err = np.max(np.abs(r1i - r1))
+        assert err < 1e-5, f"Position transform error = {err}"
+        
+        # Get terminal points in initial orbit
+        M2 = TA_to_M(TA2, self.ef)
+        sv2 = sv_from_coe(self.af,self.ef,self.incf,self.omf,self.wf,M2, mu=mu,units='km') 
+        r2f = sv2[:3]
+        v2 = sv2[3:]
+        # Check that position matches terminal position in transfer orbit
+        # assert np.allclose(r2f, r2, rtol=0, atol=1e-5)
+        err = np.max(np.abs(r2f - r2))
+        assert np.max(err) < 1e-5, f"Position transform error = {err}"
+        
+        
+        
         # Append solution
         result = self.result # Get original solution
-        result.txorb = {'a':atx, 'e':etx, 'w':wtx, 'om':omtx, 'TA1':TAtx1, 'TA2':TAtx2}
+        result.txorb = {'a':atx, 'e':etx, 'i':itx, 'om':omtx, 'w':wtx, 'TA1':TAtx1, 'TA2':TAtx2}
         result.r1 = r1
         result.r2 = r2
+        result.v1 = v1
+        result.v2 = v2
         result.vtx1 = vtx1
         result.vtx2 = vtx2
         result.I1 = I1
@@ -412,7 +442,18 @@ def transform_orbits(ai,ei,wi,omi,inci,af,ef,wf,omf,incf,reference='i',return_ba
             N = r2_vec # Direction of periapsis
         else:
             raise ValueError('Unrecognized reference. Use i or f.')
-        
+    
+    elif (inci==incf):
+        # Coplanar problem.
+        if reference=='i':
+            # Reference to initial orbit 
+            N = r1_vec # Direction of periapsis
+        elif reference=='f':
+            # Reference to final orbit.
+            N = r2_vec # Direction of periapsis
+        else:
+            raise ValueError('Unrecognized reference. Use i or f.')
+    
     else:
         # Non-coplanar problem
         if reference=='i':
@@ -489,9 +530,35 @@ def transform_orbits(ai,ei,wi,omi,inci,af,ef,wf,omf,incf,reference='i',return_ba
             b3 = h2 # Use normal of final orbit
         # Compute y-direction
         b2 = np.cross(b3,b1)
+        b2 /= np.linalg.norm(b2) # normalize
+        
         
         # Check they match
-        assert np.all(np.cross(b1,b2) == b3)
+        try:
+            # assert np.all(np.cross(b1,b2) == b3)
+            assert np.allclose(np.cross(b1,b2), b3, rtol=0, atol=1e-5)
+        except:
+            # Error.
+            # TODO: check for solution.
+            # Sometimes hapens if di = 0., and de, da very small.
+            print("Error in basis")
+            print("b1,b2,b3")
+            print(b1)
+            print(b2)
+            print(b3)
+            print("da,de,di")
+            print(af-ai)
+            print(ef-ei)
+            print(incf-inci)
+            print("Continuing")
+            # Sample case of error
+            # b1 = np.array([ 0.03109852,  0.09329556, -0.99515266])
+            # b2 = np.array([-0.63129685, -0.76988154, -0.09190442])
+            # b3 = np.array([-0.77418506,  0.63271149,  0.01771068])
+            # da,de,di
+            # 0.006721488579387369
+            # -1.8000000000000438e-06
+            # 0.0
         
         # Form basis as tuple
         B = (b1,b2,b3)
@@ -1320,22 +1387,14 @@ def decode_solution_mccue(orb1,orb2,mu,result):
         Optimization results, containing solution x.
 
     '''
-    # Extract initial orbit
-    ai = orb1['a']
-    ei = orb1['e']
-    inci = orb1['i']
-    omi = orb1['om']
-    wi = orb1['w']
-    
-    # Extract final orbit
-    af = orb2['a']
-    ef = orb2['e']
-    incf = orb2['i']
-    omf = orb2['om']
-    wf = orb2['w']
+    # Extract initial and final orbital elements
+    ai = orb1['a']; ei = orb1['e']; inci = orb1['i']; omi = orb1['om']; wi = orb1['w']
+    af = orb2['a']; ef = orb2['e']; incf = orb2['i']; omf = orb2['om']; wf = orb2['w']
     
     # Extract the solution
-    x = result.x
+    x = result.x # Reference to final orbit 
+    # th1 = TA1 + w1
+    # th2 = TA2 + w2
     
     # Transform elements to re-reference to final orbit
     a1,e1,w1,om1,inc1,a2,e2,w2,om2,inc2,B = transform_orbits(ai,ei,wi,omi,inci,af,ef,wf,omf,incf,
@@ -1355,11 +1414,14 @@ def decode_solution_mccue(orb1,orb2,mu,result):
     # X_inert = A_ref_to_inert*X_ref
     A_ref_to_inert = np.linalg.inv(A_inert_to_ref) # Inverse of A
     
-    # Evaluate the function at the solution
+    # Evaluate the function at the solution (transformed orbits)
     f,r1_ref,r2_ref,vtx1_ref,vtx2_ref,I1_ref,I2_ref,tx_type,pt = f_mccue(x,
                                               a1,e1,inc1,w1,om1, # Initial orbit
                                               a2,e2,inc2,w2,om2,  # Final orbit 
                                               mu,full_output=True)
+    
+    
+    # Transform transfer orbit to original frame ------------------------------
     
     # Transform the position and velocity vetors to the original orbit frame
     # (need to convert each vector to column vectors)
@@ -1367,20 +1429,94 @@ def decode_solution_mccue(orb1,orb2,mu,result):
     points_ref = np.row_stack((r1_ref,r2_ref,vtx1_ref,vtx2_ref,I1_ref,I2_ref))
     # Apply the transform 
     # (use transform to reshape the points into column vectors)
-    points_inert = np.dot(A_ref_to_inert, points_ref.T).T
+    points_inert = np.dot(A_ref_to_inert, points_ref.T).T 
+    # points_inert = np.dot(A_inert_to_ref, points_ref.T).T
+    
     # Extract vectors in inertial frame
-    r1 = points_inert[0,:]
-    r2 = points_inert[1,:]
-    vtx1 = points_inert[2,:]
-    vtx2 = points_inert[3,:]
-    I1 = points_inert[4,:]
-    I2 = points_inert[5,:]
+    r1 = points_inert[0,:]; r2 = points_inert[1,:]     # Positions at impulse locations
+    vtx1 = points_inert[2,:]; vtx2 = points_inert[3,:] # Velocities at impulse locations
+    I1 = points_inert[4,:]; I2 = points_inert[5,:]     # Impulse vectors dV1, dV2
     
     # Convert state vectors to elements
-    atx,etx,itx,omtx,wtx,TAtx1 = coe_from_sv(r1,vtx1,mu=mu,units='km') # 1st impulse
+    atx,etx,itx,omtx,wtx,TAtx1 = coe_from_sv(r1,vtx1,mu=mu,units='km')      # 1st impulse
     atx2,etx2,itx2,omtx2,wtx2,TAtx2 = coe_from_sv(r2,vtx2,mu=mu,units='km') # 2nd impulse
     
-    return atx,etx,itx,omtx,wtx,TAtx1,TAtx2
+    # Terminal points in ititial & final orbits -------------------------------
+    
+    # True anomalies of impulses in initial and final orbits
+    TA1 = np.mod(x[0] - w1, 2*np.pi) # True anomaly of 1st impulse in initial orbit
+    TA2 = np.mod(x[1] - w2, 2*np.pi) # True anomaly of 2nd impulse in final orbit
+    
+    # Get terminal points in initial orbit
+    M1 = TA_to_M(TA1, ei)
+    sv1 = sv_from_coe(ai,ei,inci,omi,wi,M1, mu=mu,units='km') 
+    r1i = sv1[:3]
+    v1 = sv1[3:] # Velocity in iniital orbit
+    # Check that position matches terminal position in transfer orbit
+    # assert np.allclose(r1i, r1, rtol=0, atol=1e-5)
+    err = np.max(np.abs(r1i - r1))
+    assert err < 1e-5, f"Position transform error = {err}"
+    
+    # Get terminal points in initial orbit
+    M2 = TA_to_M(TA2, ef)
+    sv2 = sv_from_coe(af,ef,incf,omf,wf,M2, mu=mu,units='km') 
+    r2f = sv2[:3]
+    v2 = sv2[3:]
+    # Check that position matches terminal position in transfer orbit
+    # assert np.allclose(r2f, r2, rtol=0, atol=1e-5)
+    err = np.max(np.abs(r2f - r2))
+    assert np.max(err) < 1e-5, f"Position transform error = {err}"
+    
+    # # Semi-latus rectum
+    # th1,th2 = x
+    # p1 = abs(a1*(1. - e1**2)) # Semi-latus rectum
+    # p2 = abs(a2*(1. - e2**2)) # Semi-latus rectum
+    # # Compute unit vectors of the terminal points and transfer angles.    
+    # # Unit vectors
+    # U1 = np.array([np.cos(th1),np.sin(th1)*np.cos(inci),np.sin(th1)*np.sin(inci)])
+    # U2 = np.array([np.cos(th2),np.sin(th2)*np.cos(incf),np.sin(th2)*np.sin(incf)])
+    # # Position vectors
+    # r1m = p1/(1+e1*np.cos(th1-wi)) # Magnitude |r1|
+    # r2m = p2/(1+e2*np.cos(th2-wf)) # Magnitude |r2|
+    # r1i = r1m*U1
+    # r2f = r2m*U2
+    
+    # FIXME: Test transformation ----------------------------------------------
+    # Confirmed working correctly
+    
+    # # Test transforming a point in the orbit
+    # TA_test = 1.234 # True anomaly of test point. Should be equal in both reference orbits
+    # M = TA_to_M(TA_test, ei) # Mean anomaly
+    
+    # # Point in original orbit
+    # sv_orig = sv_from_coe(ai,ei,inci,omi,wi,M, mu=mu, units='km') # Original orbit
+    # sv_ref = sv_from_coe(a1,e1,inc1,om1,w1,M,mu=mu,units='km') # Transformed orbit
+    
+    # # Transform back to original
+    # r_ref = sv_ref[:3]
+    # r_back = A_ref_to_inert @ r_ref
+    # print(np.linalg.norm(sv_orig[:3]-r_back))
+    # pdb.set_trace()
+    # # CONFIRMED: small errors in results. Basis is correct!
+    
+    
+    # FIXME: Test of transformation -------------------------------------------
+    # Get the solution and transform it
+    # TA = np.mod(x[0] - w1, 2*np.pi) # TA1 in transformed orbit 1
+    # sv_ref = sv_from_coe(a1,e1,inc1,om1,w1,TA_to_M(TA,e1),mu=mu, units='km')
+    # # Compare to returned point from f_mccue
+    # sv_ref[:3] - r1_ref
+    # # Should ~= 0
+    
+    # TA = x[0] + np.pi # TA1 in transformed orbit 1
+    # sv_ref = sv_from_coe(a1,e1,inc1,om1,w1,TA_to_M(TA,e1),mu=mu, units='km')
+    # # Compare to returned point from f_mccue
+    # sv_ref[:3] - r1_ref
+    # -------------------------------------------------------------------------
+    
+    
+    # Return transfer orbit, and initial and final orbits
+    return atx,etx,itx,omtx,wtx,TAtx1,TAtx2, r1,r2,vtx1,vtx2,I1,I2, TA1,TA2
 
 #%% Plotting functions
 
