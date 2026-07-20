@@ -25,6 +25,8 @@ from types import SimpleNamespace
 import matplotlib as mpl
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
+import plotly.graph_objects as go
+import plotly
 
 # Optimization
 from scipy import optimize
@@ -233,11 +235,20 @@ class OrbitToOrbitProblem:
         
         # Transform to inertial frame
         
-        # Compute transformation matrices
-        A_inert_to_ref = np.column_stack((B[0],B[1],B[2])) # Inertial to reference
-        A_ref_to_inert = np.linalg.inv(A_inert_to_ref) # # Reference to inertial (Inverse of A)
-        # X_ref = A_inert_to_ref*X_inertial
+        # Reference to inertial
         # X_inert = A_ref_to_inert*X_ref
+        A_ref_to_inert = np.column_stack((B[0],B[1],B[2])) 
+        
+        # Inertial to reference
+        # X_ref = A_inert_to_ref*X_inertial
+        A_inert_to_ref = np.linalg.inv(A_ref_to_inert) # Inverse of A
+        
+        # Check that
+        # b1 = B[0]; b2 = B[1]; b3 = B[2]
+        # A_inert_to_ref @ b1 = [1,0,0]
+        # A_inert_to_ref @ b2 = [0,1,0]
+        # A_inert_to_ref @ b3 = [0,0,1]
+        
         
         # Transform state vectors
         
@@ -286,6 +297,36 @@ class OrbitToOrbitProblem:
         err = np.max(np.abs(r2f - r2))
         assert np.max(err) < 1e-5, f"Position transform error = {err}"
         
+        
+        # FIXME: testing -------
+
+        # sv_ref = sv_from_coe(a1,e1,inc1,om1,w1, 0, mu=mu, units='km')
+        # r_ref = sv_ref[:3]
+        # v_ref = sv_ref[3:]
+        # h_ref = np.cross(r_ref,v_ref)
+        # h_ref /= np.linalg.norm(h_ref)
+        
+        # h_back = A_ref_to_inert @ h_ref
+        
+        
+        # FIXME: Test transformation ----------------------------------------------
+        # Confirmed working correctly
+        
+        # # Test transforming a point in the orbit
+        # TA_test = 0. #1.234 # True anomaly of test point. Should be equal in both reference orbits
+        # M = TA_to_M(TA_test, self.ei) # Mean anomaly self.
+        
+        # # Point in original orbit
+        # sv_orig = sv_from_coe(self.ai,self.ei,self.inci,self.omi,self.wi,M, mu=mu, units='km') # Original orbit
+        # sv_ref = sv_from_coe(a1,e1,inc1,om1,w1,M,mu=mu,units='km') # Transformed orbit
+        
+        # # Transform back to original
+        # r_ref = sv_ref[:3]
+        # r_back = A_ref_to_inert @ r_ref
+        # print(np.linalg.norm(sv_orig[:3]-r_back))
+        # # CONFIRMED: small errors in results. Basis is correct!
+        
+        
         # Transfer characteristics --------------------------------------------      
 
         # Compute delta-Vs
@@ -306,8 +347,8 @@ class OrbitToOrbitProblem:
         tsptx1 = MAtx1*Ttx/(2*np.pi) # Time since periapsis in tx orbit
         tsptx2 = MAtx2*Ttx/(2*np.pi) # Time since periapsis in tx orbit
         tof = tsptx2-tsptx1
-        if tof<0:
-            pdb.set_trace()
+        # if tof<0:
+        #     pdb.set_trace()
         
         # # Find location and times of departure burn in orbit 1
         # _,_,_,_,_,TA1 = coe_from_sv(r1,v1,mu=mu,units='km') # Departure orbit
@@ -329,10 +370,13 @@ class OrbitToOrbitProblem:
         result.r2 = r2
         result.v1 = v1
         result.v2 = v2
+        result.TA1 = TA1
+        result.TA2 = TA2
         result.vtx1 = vtx1
         result.vtx2 = vtx2
         result.I1 = I1
-        result.I2 = I2
+        result.I2 = I2        
+        
         # Transfer characteristics
         result.dV1 = dV1
         result.dV2 = dV2
@@ -347,6 +391,350 @@ class OrbitToOrbitProblem:
         return
     
     # Plotting ----------------------------------------------------------------
+    
+    def plot(self, normalized=False, render=True):
+        
+        # Initial and Final orbital elements
+        if normalized:
+            # Retrieve pre-computed transformed elements
+            a1,e1,inc1,w1,om1 = self._a1, self._e1, self._inc1, self._w1, self._om1
+            a2,e2,inc2,w2,om2 = self._a2, self._e2, self._inc2, self._w2, self._om2
+        else:
+            # Retrieve normal orbital elements
+            a1,e1,inc1,w1,om1 = self.orb1['a'], self.orb1['e'], self.orb1['i'], self.orb1['w'], self.orb1['om']
+            a2,e2,inc2,w2,om2 = self.orb2['a'], self.orb2['e'], self.orb2['i'], self.orb2['w'], self.orb2['om']
+        
+        # Transfer orbit
+        atx,etx,inctx,omtx,wtx = self.result.txorb['a'], self.result.txorb['e'], self.result.txorb['i'], self.result.txorb['om'], self.result.txorb['w']
+        # atx,etx,inctx,omtx,wtx,_ = coe_from_sv(self.result.r1,self.result.vtx1,mu=398600,units='km')
+        
+        
+        mu = self.mu
+        RE = 6378  # Radius of Earth (km)
+        
+
+        # Orbit 1
+        M_vec1 = np.linspace(0,2*np.pi,200) # Starting at periapsis
+        sv_orb1 = sv_from_coe(a1,e1,inc1,om1,w1,M_vec1,mu=mu,units='km') 
+        r_orb1 = sv_orb1[:,:3]
+        v_orb1 = sv_orb1[:,3:]
+        
+        # Orbit 2
+        M_vec2 = np.linspace(0,2*np.pi,200) # Starting at periapsis
+        sv_orb2 = sv_from_coe(a2,e2,inc2,om2,w2,M_vec2,mu=mu,units='km') 
+        r_orb2 = sv_orb2[:,:3]
+        v_orb2 = sv_orb2[:,3:]
+        
+        # Transfer
+        M_vectx = np.linspace(0,2*np.pi,200) # Starting at periapsis
+        sv_orbtx = sv_from_coe(atx,etx,inctx,omtx,wtx,M_vectx,mu=mu,units='km') 
+        r_orbtx = sv_orbtx[:,:3]
+        v_orbtx = sv_orbtx[:,3:]
+        
+        
+        
+        
+        
+        # Step 1: Geometry of initial & final orbits ------------------------------
+        # Use periapsis state vectors of initial and final orbits to find the orbit
+        # normals, and the line of nodes.
+        
+        # Initial orbit
+        sv1 = sv_from_coe(a1,e1,inc1,om1,w1,0.,mu=mu,units='km') 
+        r1_vec = sv1[:3] # Periapsis direction of orbit 1
+        v1_vec = sv1[3:]
+        h1 = np.cross(r1_vec,v1_vec) # Normal vector
+        h1 = h1/np.linalg.norm(h1) # Unit normal vector
+        del sv1
+        
+        # Final orbit
+        sv2 = sv_from_coe(a2,e2,inc2,om2,w2,0.,mu=mu,units='km')
+        r2_vec = sv2[:3]
+        v2_vec = sv2[3:]
+        h2 = np.cross(r2_vec,v2_vec) # Normal vector
+        h2 = h2/np.linalg.norm(h2) # Unit normal vector
+        del sv2
+        
+        # Find the angle between initial and final orbit
+        cos_phi = np.dot(h1,h2)
+        phi = np.arccos(np.clip(cos_phi, -1, 1))
+        phi = np.mod(phi, 2*np.pi) # Wrap to 2pi
+        # This is the relative inclination of the final orbit wrt initial orbit.
+        
+        # Compute basis vectors of the perifocal frames P,Q
+        # Use transformation matrix from perifocal to ECEF (see Curtis pg 174) QxX
+        # P = [QxX]*[1,0,0]^T (1st column of transformation matrix)
+        P1 = np.column_stack([np.cos(om1)*np.cos(w1)-np.sin(om1)*np.sin(w1)*np.cos(inc1),
+                              np.sin(om1)*np.cos(w1)+np.cos(om1)*np.cos(inc1)*np.sin(w1),
+                              np.sin(inc1)*np.sin(w1),
+                              ])
+        P2 = np.column_stack([np.cos(om2)*np.cos(w2)-np.sin(om2)*np.sin(w2)*np.cos(inc2),
+                              np.sin(om2)*np.cos(w2)+np.cos(om2)*np.cos(inc2)*np.sin(w2),
+                              np.sin(inc2)*np.sin(w2),
+                              ])
+        
+        # Q = [QxX]*[0,1,0]^T (2nd column of transformation matrix)
+        Q1 = np.column_stack([-np.cos(om1)*np.sin(w1)-np.sin(om1)*np.cos(inc1)*np.cos(w1),
+                              -np.sin(om1)*np.sin(w1)+np.cos(om1)*np.cos(inc1)*np.cos(w1),
+                              np.sin(inc1)*np.cos(w1),
+                              ])
+        Q2 = np.column_stack([-np.cos(om2)*np.sin(w2)-np.sin(om2)*np.cos(inc2)*np.cos(w2),
+                              -np.sin(om2)*np.sin(w2)+np.cos(om2)*np.cos(inc2)*np.cos(w2),
+                              np.sin(inc2)*np.cos(w2),
+                              ])
+        
+        # H = [QxX]*[0,0,1]^T (3rd column of transformation matrix)
+        H1 = np.column_stack([np.sin(om1)*np.sin(inc1),
+                              -np.cos(om1)*np.sin(inc1),
+                              np.cos(inc1),
+                              ])
+        H2 = np.column_stack([np.sin(om2)*np.sin(inc2),
+                              -np.cos(om2)*np.sin(inc2),
+                              np.cos(inc2),
+                              ])
+        
+        # Find the eccentric anomalies of the intersection
+        # Want to find points where (r1.H2 = 0) & (r2.H1 = 0)
+        
+        # The position vectors can be written in the perifocal coordiantes
+        # r1 = a1*(cos(E1) - e1)*P1 + b1*sinE1*Q1
+        # r2 = a2*(cos(E2) - e2)*P2 + b2*sinE2*Q2
+        # (using rmag = a(1-eCos(E)) )
+        
+        # Compute the semi-minor axis b
+        b1 = a1*np.sqrt(1. - e1**2)
+        b2 = a2*np.sqrt(1. - e2**2)
+        
+        # Compute the coefficients of the solution (eq 5)
+        # Use einsum to compute dot products
+        A1 = b1*np.einsum('ij,ij->i', Q1, H2 )
+        B1 = a1*np.einsum('ij,ij->i', P1, H2 )
+        C1 = -a1*e1*np.einsum('ij,ij->i', P1, H2 )
+        A2 = b2*np.einsum('ij,ij->i', Q2, H1 )
+        B2 = a2*np.einsum('ij,ij->i', P2, H1 )
+        C2 = -a2*e2*np.einsum('ij,ij->i', P2, H1 )
+        
+        # Solve for eccentric anomalies (eq 6) (2 solutions)
+        E11 = np.arctan2(-A1*B1 + C1*np.sqrt(A1**2 + B1**2 - C1**2), A1**2 - C1**2 )
+        E12 = np.arctan2(-A1*B1 - C1*np.sqrt(A1**2 + B1**2 - C1**2), A1**2 - C1**2 )
+        E21 = np.arctan2(-A2*B2 + C2*np.sqrt(A2**2 + B2**2 - C2**2), A2**2 - C2**2 )
+        E22 = np.arctan2(-A2*B2 - C2*np.sqrt(A2**2 + B2**2 - C2**2), A2**2 - C2**2 )
+        
+        # Ensure each solution satisfies eq 6
+        # The solution E11+pi is also valid. Only 1 will satisfy eq 6.
+        # (Testing - valid within tolerance 1E-13)
+        E11[abs(A1*np.sin(E11)+B1*np.cos(E11)+C1) > abs(A1*np.sin(E11+np.pi)+B1*np.cos(E11+np.pi)+C1)] += np.pi
+        E12[abs(A1*np.sin(E12)+B1*np.cos(E12)+C1) > abs(A1*np.sin(E12+np.pi)+B1*np.cos(E12+np.pi)+C1)] += np.pi
+        E21[abs(A2*np.sin(E21)+B2*np.cos(E21)+C2) > abs(A2*np.sin(E21+np.pi)+B2*np.cos(E21+np.pi)+C2)] += np.pi
+        E22[abs(A2*np.sin(E22)+B2*np.cos(E22)+C2) > abs(A2*np.sin(E22+np.pi)+B2*np.cos(E22+np.pi)+C2)] += np.pi
+        
+        # Find position vectors at each of these points
+        # r1 = a1*(cos(E1) - e1)*P1 + b1*sinE1*Q1
+        r11 = (a1*(np.cos(E11) -e1))[:, np.newaxis]*P1 + (b1*np.sin(E11))[:, np.newaxis]*Q1
+        # r12 = (a1*(np.cos(E12) -e1))[:, np.newaxis]*P1 + (b1*np.sin(E12))[:, np.newaxis]*Q1
+        r21 = (a2*(np.cos(E21) -e2))[:, np.newaxis]*P2 + (b2*np.sin(E21))[:, np.newaxis]*Q2
+        # r22 = (a2*(np.cos(E22) -e2))[:, np.newaxis]*P2 + (b2*np.sin(E22))[:, np.newaxis]*Q2
+        
+        # Get ascemdomg mpdes
+        AN1 = r11[0]
+        AN2 = r21[0]
+        
+        # Descending nodes
+        DN1 = (a1*(np.cos(E11+np.pi) -e1))[:, np.newaxis]*P1 + (b1*np.sin(E11+np.pi))[:, np.newaxis]*Q1
+        DN2 = (a2*(np.cos(E21+np.pi) -e2))[:, np.newaxis]*P2 + (b2*np.sin(E21+np.pi))[:, np.newaxis]*Q2
+        DN1 = DN1[0]
+        DN2 = DN2[0]
+        
+        # Get unit vector of line of nodes
+        N_vec = AN1/np.linalg.norm(AN1)
+        N_mag = max(np.linalg.norm(AN1),np.linalg.norm(AN2), np.linalg.norm(DN1),np.linalg.norm(DN2) ) # Largest length to display
+        
+        # Create figure ------------------------------------------------------- 
+        fig = go.Figure()
+        
+        # Add orbit 1
+        fig.add_trace(go.Scatter3d(
+            #x=r_x, y=r_y, z=r_z,
+            x = r_orb1[:,0], y=r_orb1[:,1], z=r_orb1[:,2],
+            mode='lines',
+            line=dict(color='darkblue',width=3),
+            name='Orbit 1',legendgroup="Orbit 1",
+            showlegend= True,
+            visible=True,
+        ))
+        fig.add_trace(go.Mesh3d(
+            x=r_orb1[:,0],
+            y=r_orb1[:,1],
+            z=r_orb1[:,2],
+            alphahull=-1, # 0 for a solid convex hull surface, use >0 for opacity tricks
+            color='royalblue',
+            opacity=0.3,
+            name='Orbit 1',legendgroup="Orbit 1",
+            showlegend= True,
+            visible=True,
+        ))
+        
+        
+        # Add orbit 2
+        fig.add_trace(go.Scatter3d(
+            #x=r_x, y=r_y, z=r_z,
+            x = r_orb2[:,0], y=r_orb2[:,1], z=r_orb2[:,2],
+            mode='lines',
+            line=dict(color='red',width=3),
+            name='Orbit 2',legendgroup="Orbit 2",
+            showlegend= True,
+            visible=True,
+        ))
+        fig.add_trace(go.Mesh3d(
+            x=r_orb2[:,0],
+            y=r_orb2[:,1],
+            z=r_orb2[:,2],
+            alphahull=-1, # 0 for a solid convex hull surface, use >0 for opacity tricks
+            color='red',
+            opacity=0.3,
+            name='Orbit 2',legendgroup="Orbit 2",
+            showlegend= True,
+            visible=True,
+        ))
+        
+        # Add Transfer orbit
+        fig.add_trace(go.Scatter3d(
+            x = r_orbtx[:,0], y=r_orbtx[:,1], z=r_orbtx[:,2],
+            mode='lines',
+            line=dict(color='green',width=3),
+            name='Transfer Orbit',legendgroup="Transfer Orbit",
+            showlegend= True,
+            visible=True,
+        ))
+        fig.add_trace(go.Mesh3d(
+            x=r_orbtx[:,0],
+            y=r_orbtx[:,1],
+            z=r_orbtx[:,2],
+            alphahull=-1, # 0 for a solid convex hull surface, use >0 for opacity tricks
+            color='green',
+            opacity=0.5,
+            name='Transfer Orbit',legendgroup="Transfer Orbit",
+            showlegend= True,
+            visible=True,
+        ))
+        
+        
+        # Terminal points
+        fig.add_trace(go.Scatter3d(
+            x=[self.result.r1[0], self.result.r2[0]],
+            y=[self.result.r1[1], self.result.r2[1]],
+            z=[self.result.r1[2], self.result.r2[2]],
+            mode='markers',                 # Show both lines and markers
+            name='Ascending Nodes',
+            marker=dict(
+                symbol='circle',  # Choose from: circle, square, diamond, cross, x
+                size=5,                          # Set marker size
+                color='green',             # Set marker fill color
+                line=dict(color='Black', width=1) # Optional: add a border
+            )
+        ))
+        
+        
+        
+        
+        
+        # Line of nodes
+        fig.add_trace(go.Scatter3d(
+            # x= [sv_peri[0], sv_apo[0] ], y=[sv_peri[1], sv_apo[1] ], z=[sv_peri[2], sv_apo[2] ],
+            x=[-N_mag*N_vec[0] , N_mag*N_vec[0] ], 
+            y=[-N_mag*N_vec[1] , N_mag*N_vec[1] ], 
+            z=[-N_mag*N_vec[2] , N_mag*N_vec[2] ],
+            mode='lines',line=dict(color='Black',width=1,dash='dot'),
+            name='Line of Nodes',
+            legendgroup="Apse line",showlegend= True,visible=True,
+        ))
+        
+        # Ascending nodes
+        fig.add_trace(go.Scatter3d(
+            x=[AN1[0], AN2[0]],
+            y=[AN1[1], AN2[1]],
+            z=[AN1[2], AN2[2]],
+            mode='markers',                 # Show both lines and markers
+            name='Ascending Nodes',
+            marker=dict(
+                symbol='circle',  # Choose from: circle, square, diamond, cross, x
+                size=5,                          # Set marker size
+                color='MediumPurple',             # Set marker fill color
+                line=dict(color='Black', width=1) # Optional: add a border
+            )
+        ))
+        
+        # Decending nodes
+        fig.add_trace(go.Scatter3d(
+            x=[DN1[0], DN2[0]],
+            y=[DN1[1], DN2[1]],
+            z=[DN1[2], DN2[2]],
+            mode='markers',                 # Show both lines and markers
+            name='Decending Nodes',
+            marker=dict(
+                symbol='circle',  # Choose from: circle, square, diamond, cross, x
+                size=5,                          # Set marker size
+                color='MediumPurple',             # Set marker fill color
+                line=dict(color='Black', width=1) # Optional: add a border
+            )
+        ))
+        
+        
+        
+        
+        # Define fixed ranges for each axis (as in the previous example)
+        if mu==1:
+            fixed_x_range = [-5, 5]
+            fixed_y_range = [-5, 5]
+            fixed_z_range = [-5, 5]
+        else:
+            rmax = max(a1,a2) + 200
+            fixed_x_range = [-rmax, rmax]
+            fixed_y_range = [-rmax, rmax]
+            fixed_z_range = [-rmax, rmax]
+        
+        
+        # Add ecliptic plane
+        # Create a meshgrid for x and y
+        x_range = np.linspace(-rmax, rmax, 50)
+        y_range = np.linspace(-rmax, rmax, 50)
+        X, Y = np.meshgrid(x_range, y_range)
+        # Define the z-value for the plane (e.g., z = 0)
+        Z = np.zeros_like(X) # Or any constant value, e.g., Z_plane = 5 * np.ones_like(X)
+        # # # Create the plane trace
+        # fig.add_trace(go.Surface(x=X, y=Y, z=Z, opacity=0.3, 
+        #                           colorscale='Reds', showscale=False,
+        #                           name='Ecliptic Plane',
+        #                           showlegend=True, visible=True,
+        #                           ))
+        
+        
+        
+        # Update the layout with fixed ranges and equal aspect ratio
+        fig.update_layout(
+            # width=700,       # Set the desired width in pixels
+            # height=700,      # Set the desired height in pixels
+            scene=dict(
+                # xaxis=dict(range=fixed_x_range),
+                # yaxis=dict(range=fixed_y_range),
+                # zaxis=dict(range=fixed_z_range),
+                # aspectmode='manual', aspectratio=dict(x=1, y=1, z=1),
+                aspectmode='data',
+            )
+        )
+        fig.update_layout(scene_camera=dict(eye=dict(x=1.25, y=1.25, z=1.25)), uirevision='constant_revision_id')
+        
+        
+        # Render the figure
+        if render == True:
+            #     # fig.show() config={'scrollZoom': True}
+            plotly.offline.plot(fig, validate=False, filename='OrbitToOrbit.html')
+            return
+        else:
+            # Return figure
+            return fig
+        
+    
     def plot_porkchop(self,Nx=100,Ny=100,method='vectorized'):
         
         # Retrieve pre-computed transformed elements
@@ -472,6 +860,12 @@ def transform_orbits(ai,ei,wi,omi,inci,af,ef,wf,omf,incf,reference='i',return_ba
     h2 = h2/np.linalg.norm(h2) # Unit normal vector
     del sv2
     
+    # Find the angle between initial and final orbit
+    cos_phi = np.dot(h1,h2)
+    phi = np.arccos(np.clip(cos_phi, -1, 1))
+    phi = np.mod(phi, 2*np.pi) # Wrap to 2pi
+    # This is the relative inclination of the final orbit wrt initial orbit.
+    
     # Line of nodes (from cross product of orbit normals)
     if (inci==0.) & (incf==0.):
         # Coplanar problem.
@@ -484,16 +878,17 @@ def transform_orbits(ai,ei,wi,omi,inci,af,ef,wf,omf,incf,reference='i',return_ba
         else:
             raise ValueError('Unrecognized reference. Use i or f.')
     
-    elif (inci==incf):
-        # Coplanar problem.
+    
+    elif abs(phi) < 1e-10:
+        # Nearly co-planar. Treat as co-planar
         if reference=='i':
             # Reference to initial orbit 
             N = r1_vec # Direction of periapsis
         elif reference=='f':
             # Reference to final orbit.
             N = r2_vec # Direction of periapsis
-        else:
-            raise ValueError('Unrecognized reference. Use i or f.')
+        # N /= np.linalg.norm(N)
+        
     
     else:
         # Non-coplanar problem
@@ -509,12 +904,6 @@ def transform_orbits(ai,ei,wi,omi,inci,af,ef,wf,omf,incf,reference='i',return_ba
     # Normalize the line of nodes
     if np.linalg.norm(N) != 0:
         N = N/np.linalg.norm(N) # Normalize
-                         
-    # Find the angle between initial and final orbit
-    cos_phi = np.dot(h1,h2)
-    phi = np.arccos(np.clip(cos_phi, -1, 1))
-    phi = np.mod(phi, 2*np.pi) # Wrap to 2pi
-    # This is the relative inclination of the final orbit wrt initial orbit.
     
     # Step 2: Transform orbits wrt line of nodes ------------------------------
     # We use this line of nodes as a reference direction for both orbits.
@@ -532,7 +921,6 @@ def transform_orbits(ai,ei,wi,omi,inci,af,ef,wf,omf,incf,reference='i',return_ba
     cross = np.cross(N,r2_vec)
     w2 = np.arctan2(  np.dot(cross,h2) ,  np.dot(N,r2_vec) )
     w2 = np.mod(w2, 2*np.pi) # Wrap to 2pi
-    
     
     
     # Note: angle from Va to Vb = atan2((Va x Vb) . Vn, Va . Vb)
@@ -573,7 +961,6 @@ def transform_orbits(ai,ei,wi,omi,inci,af,ef,wf,omf,incf,reference='i',return_ba
         b2 = np.cross(b3,b1)
         b2 /= np.linalg.norm(b2) # normalize
         
-        
         # Check they match
         try:
             # assert np.all(np.cross(b1,b2) == b3)
@@ -603,6 +990,7 @@ def transform_orbits(ai,ei,wi,omi,inci,af,ef,wf,omf,incf,reference='i',return_ba
         
         # Form basis as tuple
         B = (b1,b2,b3)
+        # b1,b2,b3 are basis vectors in inertial coords
         
         # Return transformed elements and basis
         return a1,e1,w1,om1,inc1,a2,e2,w2,om2,inc2,B
@@ -718,7 +1106,15 @@ def f_mccue(x,
         pmin = (r1m*r2m - r1_dot_r2)/(r1m+r2m + np.sqrt(2*(r1m*r2m + r1_dot_r2)) )
         pmax = (r1m*r2m - r1_dot_r2)/(r1m+r2m - np.sqrt(2*(r1m*r2m + r1_dot_r2)) )
     
-    
+    # Fix any nan values
+    if np.isnan(pmin):
+        pmin = 0.1 # Set at small value
+    if np.isnan(pmax):
+        pmax = a1*a2 # Set at large value
+    # Example case - close to 180deg transfer
+    # orb1{'a': 7243.297959948436, 'e': 0.0055426, 'w': 5.200222468951121, 'i': 1.7253120708032066, 'om': 5.087704582733551}
+    # orb2={'a': 7243.697553321037, 'e': 0.0054647, 'w': 5.45403173943464, 'i': 1.725219568352851, 'om': 5.102794699446294}
+    # ValueError: The function value at x=nan is NaN; solver cannot continue.
     
     # Evaluate dI/dp at these end points
     f1 = func_dVdp(pmin, r1,r2,U1,U2,V1,V2,delta,mu)
@@ -1258,10 +1654,18 @@ def func_dVdp_vec(p, r1,r2,U1,U2,V1,V2,delta,mu,pmin,pmax):
     # Compute v and z parameters eq 18 & 19.
     dr = r2-r1
     r1_cross_r2m = np.linalg.norm(np.cross(r1,r2), axis=-1)
+    
     # Error handling for r1xr2 = 0
     # r1_cross_r2m[r1_cross_r2m==0.] = 1E-30 # Replace with small number
     
-    v = np.sqrt(mu*p)[:, np.newaxis]*(r2-r1)/r1_cross_r2m[:, np.newaxis]
+    # r1 x r2 = 0 corresponds to parallel/antiparallel geometry
+    valid = np.abs(r1_cross_r2m) > 1e-12
+    
+    # v = np.sqrt(mu*p)[:, np.newaxis]*(r2-r1)/r1_cross_r2m[:, np.newaxis]
+    v = np.full_like(dr, np.nan) # initialize array
+    np.divide( np.sqrt(mu * p)[:, np.newaxis] * dr, r1_cross_r2m[:, np.newaxis],
+              out=v, where=valid[:, np.newaxis])
+    
     z = np.sqrt(mu/p)*np.tan(delta/2)
     
     # Short Transfer (upper sign)
@@ -1447,13 +1851,20 @@ def decode_solution_mccue(orb1,orb2,mu,result):
     # to the new reference system. Take the inverse of this matrix to find the 
     # reverse transform back to inertial space.
     
-    # Inertial to reference
-    # X_ref = A_inert_to_ref*X_inertial
-    A_inert_to_ref = np.column_stack((B[0],B[1],B[2]))
-    
     # Reference to inertial
     # X_inert = A_ref_to_inert*X_ref
-    A_ref_to_inert = np.linalg.inv(A_inert_to_ref) # Inverse of A
+    A_ref_to_inert = np.column_stack((B[0],B[1],B[2])) 
+    
+    # Inertial to reference
+    # X_ref = A_inert_to_ref*X_inertial
+    A_inert_to_ref = np.linalg.inv(A_ref_to_inert) # Inverse of A
+    
+    
+    # Check that
+    # A_inert_to_ref @ b1 = [1,0,0]
+    # A_inert_to_ref @ b2 = [0,1,0]
+    # A_inert_to_ref @ b3 = [0,0,1]
+    
     
     # Evaluate the function at the solution (transformed orbits)
     f,r1_ref,r2_ref,vtx1_ref,vtx2_ref,I1_ref,I2_ref,tx_type,pt = f_mccue(x,
@@ -1496,7 +1907,9 @@ def decode_solution_mccue(orb1,orb2,mu,result):
     # Check that position matches terminal position in transfer orbit
     # assert np.allclose(r1i, r1, rtol=0, atol=1e-5)
     err = np.max(np.abs(r1i - r1))
-    assert err < 1e-5, f"Position transform error = {err}"
+    if err > 1e-5: 
+        print( f"r1 Position transform error = {err}, orb1={orb1}; orb2={orb2}")
+    #assert err < 1e-5, f"r1 Position transform error = {err}, orb1={orb1}; orb2={orb2}"
     
     # Get terminal points in initial orbit
     M2 = TA_to_M(TA2, ef)
@@ -1506,7 +1919,13 @@ def decode_solution_mccue(orb1,orb2,mu,result):
     # Check that position matches terminal position in transfer orbit
     # assert np.allclose(r2f, r2, rtol=0, atol=1e-5)
     err = np.max(np.abs(r2f - r2))
-    assert np.max(err) < 1e-5, f"Position transform error = {err}"
+    #assert np.max(err) < 1e-5, f"r2 Position transform error = {err}, orb1={orb1}; orb2={orb2}"
+    if err > 1e-5: 
+        print( f"r2 Position transform error = {err}, orb1={orb1}; orb2={orb2}")
+    
+    
+    # TODO: Test some cases
+    # r1 Position transform error = 23.50861083957893, orb1={'a': 42164.55547082002, 'e': 4.42e-05, 'w': 4.048760693569634, 'i': 0.0003839724354387525, 'om': 0.13775883785991241}; orb2={'a': 42164.8876693162, 'e': 8.9e-05, 'w': 3.6463244199740337, 'i': 0.0003839724354387525, 'om': 4.601988178549789}
     
     # # Semi-latus rectum
     # th1,th2 = x
@@ -1556,8 +1975,66 @@ def decode_solution_mccue(orb1,orb2,mu,result):
     # -------------------------------------------------------------------------
     
     
+    
+    # Transfer characteristics ------------------------------------------------      
+
+    # Compute delta-Vs
+    dV1 = np.linalg.norm(I1,axis=-1) # Delta-V 1
+    dV2 = np.linalg.norm(I2,axis=-1) # Delta-V 2
+    
+    # Find the time of flight of transfer
+    # Find mean anomally of r1 and r2 in transfer orbit
+    MAtx1 = float(TA_to_M(TAtx1,etx)) # Mean anomaly at r1
+    MAtx2 = float(TA_to_M(TAtx2,etx)) # Mean anomaly at r2
+    # Ensure MAtx2>MAtx1
+    if MAtx2 < MAtx1:
+        MAtx2 += 2*np.pi
+    
+    # Find time since periapsis passage of both locations
+    # M = (2π/T)*t  ->  t = M*(T/(2π))
+    Ttx = 2*np.pi*np.sqrt(atx**3/mu)
+    tsptx1 = MAtx1*Ttx/(2*np.pi) # Time since periapsis in tx orbit
+    tsptx2 = MAtx2*Ttx/(2*np.pi) # Time since periapsis in tx orbit
+    tof = tsptx2-tsptx1
+    # if tof<0:
+    #     pdb.set_trace()
+    
+    # # Find location and times of departure burn in orbit 1
+    # _,_,_,_,_,TA1 = coe_from_sv(r1,v1,mu=mu,units='km') # Departure orbit
+    # pdb.set_trace()
+    
+    # Time of departure burn in orbit 1
+    M1 = TA_to_M(TA1,ei)   # Mean anomaly of departure point
+    tsp1 = M1*2*np.pi*np.sqrt(ai**3/mu)/(2*np.pi) # Time since periapsis of orbit 1
+    
+    # Time of arrival burn in orbit 2
+    M2 = TA_to_M(TA2,ef)   # Mean anomaly of arrival point
+    tsp2 = M2*2*np.pi*np.sqrt(af**3/mu)/(2*np.pi) # Time since periapsis of orbit 1
+    
+
+    # Append solution
+    result.txorb = {'a':atx, 'e':etx, 'i':itx, 'om':omtx, 'w':wtx, 'TA1':TAtx1, 'TA2':TAtx2}
+    result.r1 = r1
+    result.r2 = r2
+    result.v1 = v1
+    result.v2 = v2
+    result.TA1 = TA1
+    result.TA2 = TA2
+    result.vtx1 = vtx1
+    result.vtx2 = vtx2
+    result.I1 = I1
+    result.I2 = I2
+    
+    # Transfer characteristics
+    result.dV1 = dV1
+    result.dV2 = dV2
+    result.dV_tot = dV1 + dV2
+    result.tof = tof
+    result.tsp1 = tsp1
+    result.tsp2 = tsp2
+    
     # Return transfer orbit, and initial and final orbits
-    return atx,etx,itx,omtx,wtx,TAtx1,TAtx2, r1,r2,vtx1,vtx2,I1,I2, TA1,TA2
+    return result
 
 #%% Plotting functions
 

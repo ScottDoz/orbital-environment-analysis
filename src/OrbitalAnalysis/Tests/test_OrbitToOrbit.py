@@ -257,16 +257,64 @@ def test_mccue_solvers(scenario=1):
     print(df)    
     
     # Decode solution
-    atx,etx,itx,omtx,wtx,TAtx1,TAtx2, r1,r2,vtx1,vtx2,I1,I2,TA1,TA2 = decode_solution_mccue(orb1,orb2,mu,result)
+    result = decode_solution_mccue(orb1,orb2,mu,result)
     print('Transfer orbit')
-    print('a = {} km'.format(atx))
-    print('e = {}'.format(etx))
-    print('i = {} deg'.format(np.rad2deg(itx)))
-    print('om = {} deg'.format(np.rad2deg(omtx)))
-    print('w = {} deg'.format(np.rad2deg(wtx)))
-    print('TAtx1 = {} deg'.format(np.rad2deg(TAtx1)))
-    print('TAtx2 = {} deg'.format(np.rad2deg(TAtx2)))
+    print('a = {} km'.format(result.txorb['a']))
+    print('e = {}'.format(result.txorb['e']))
+    print('i = {} deg'.format(np.rad2deg(result.txorb['i'])))
+    print('om = {} deg'.format(np.rad2deg(result.txorb['om'])))
+    print('w = {} deg'.format(np.rad2deg(result.txorb['w'])))
+    print('TAtx1 = {} deg'.format(np.rad2deg(result.txorb['TA1'])))
+    print('TAtx2 = {} deg'.format(np.rad2deg(result.txorb['TA2'])))
     
+    # Test after decode
+    # Transfer characteristics
+    dV = result.fun
+    dV1 = result.dV1
+    dV2 = result.dV2
+    tof = result.tof
+    # Positions in initial orbit
+    TA1 = result.TA1
+    TA2 = result.TA2
+    # Extract transfer orbit
+    atx = result.txorb['a']; etx = result.txorb['e']; itx = result.txorb['i']; 
+    omtx = result.txorb['om']; wtx = result.txorb['w']; 
+    TAtx1= result.txorb['TA1']; TAtx2= result.txorb['TA2']; 
+    # Terminal vectors
+    r1 = result.r1
+    r2 = result.r2
+    v1 = result.v1
+    v2 = result.v2
+    vtx1 = result.vtx1
+    vtx2 = result.vtx2
+    # dV vectors
+    I1 = result.I1
+    I2 = result.I2
+    # FIXME: Orbital elements
+    a1 = orb1['a']; e1 = orb1['e']; i1 = orb1['i']; om1 = orb1['om'];w1 = orb1['w'];
+    a2 = orb2['a']; e2 = orb2['e']; i2 = orb2['i']; om2 = orb2['om'];w2 = orb2['w'];
+    
+    # # Extract state vectors from orbital elements
+    # sv_ref = sv_from_coe(a1,e1,i1,om1,w1,TA_to_M(TA1,e1),mu=mu,units='km')
+    # sv_ref[:3] - r1
+    # sv_ref[3:] - v1
+    
+    # # Extract state vectors from orbital elements
+    # sv_ref = sv_from_coe(a2,e2,i2,om2,w2,TA_to_M(TA2,e2),mu=mu,units='km')
+    # sv_ref[:3] - r2
+    # sv_ref[3:] - v2
+    
+    # sv_ref = sv_from_coe(atx,etx,itx,omtx,wtx,TA_to_M(TAtx1,etx),mu=mu,units='km')
+    # sv_ref[:3] - r1
+    # sv_ref[3:] - vtx1
+    # # Confirmed: can re-construct r1,vtx1 from TAtx1
+    
+    # sv_ref = sv_from_coe(atx,etx,itx,omtx,wtx,TA_to_M(TAtx2,etx),mu=mu,units='km')
+    # sv_ref[:3] - r2
+    # sv_ref[3:] - vtx2
+    # # Confirmed: can re-construct r2,vtx2 from TAtx2
+    
+    pdb.set_trace()
     
     return
 
